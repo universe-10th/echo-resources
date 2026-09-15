@@ -3,7 +3,7 @@ package types
 import "time"
 
 // The Identified interface defines the ID() method for resources.
-type Identified[T any] interface {
+type Identified[T comparable] interface {
 	// GetID returns the id of the element. This value should never change,
 	// once it's defined. The value should be scalar and the zero value of
 	// T should imply the element is not saved in storage.
@@ -34,7 +34,7 @@ type DeletionTimestamp interface {
 
 // The Resource interface defines a resource with ID and create/update stamps. On deleted, the
 // object disappears and is not reachable anymore.
-type Resource[T any] interface {
+type Resource[T comparable] interface {
 	Identified[T]
 	Timestamps
 }
@@ -42,7 +42,7 @@ type Resource[T any] interface {
 // The SoftDeletedResource interface defines a resource with ID and create/update/delete stamps. On
 // deleted, the object is marked on its deletion time to become non-nil. Ideally, this means the object
 // still exists in database.
-type SoftDeletedResource[T any] interface {
+type SoftDeletedResource[T comparable] interface {
 	Identified[T]
 	Timestamps
 	DeletionTimestamp
