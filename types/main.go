@@ -4,14 +4,19 @@ import "time"
 
 // The Identified interface defines the ID() method for resources.
 type Identified[T any] interface {
+	// GetID returns the id of the element. This value should never change,
+	// once it's defined. The value should be scalar and the zero value of
+	// T should imply the element is not saved in storage.
 	GetID() T
 }
 
 // The Timestamps interface defined the GetCreationTime() and GetLastUpdateTime() methods for resources.
 // When created, both fields match. When updated, the value of GetLastUpdateTime() will be different.
-// The value of GetCreationTime() should never change.
 type Timestamps interface {
+	// GetCreationTime tells the time it was created. This value should never change.
 	GetCreationTime() time.Time
+
+	// GetLastUpdateTime tells the time it was last-updated.
 	GetLastUpdateTime() time.Time
 }
 
@@ -19,7 +24,11 @@ type Timestamps interface {
 // The constraint here is that, if GetDeletionTime() returns a non-nil value, IsDeleted() must return
 // true. Otherwise, it must return false.
 type DeletionTimestamp interface {
+	// GetDeletionTime tells the time it was deleted. On nil, this means the element is not deleted.
 	GetDeletionTime() *time.Time
+
+	// IsDeleted tells whether the element is deleted. It must be true when GetDeletionTime is not
+	// nil, and false otherwise.
 	IsDeleted() bool
 }
 
