@@ -1,5 +1,13 @@
 package types
 
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"regexp"
+)
+
 /**
  * Filters are a special topic here. They are parsed from a serialized format which
  * looks like this:
@@ -34,12 +42,13 @@ package types
  * - The format of each allowed clause is valid.
  */
 
-// The Filter interface has a method to serialize itself into an engine-specific query.
+// The FilterSerializer interface has a method to serialize a parsed filter expression
+// into an engine-specific query.
 // The Query type is either a map (for MongoDB engine) or string (for GORM engine), and
 // new engines might use their own types.
-type Filter[Query any] interface {
-	// Serialize produces a query values to be used in the underlying database engine.
-	Serialize() Query
+type FilterSerializer[Query any] interface {
+	// Serialize produces query values to be used in the underlying database engine.
+	Serialize(filter FilterExpression) Query
 }
 
 // The FilterValidator interface has methods to tell whether the fields and values involved
@@ -67,3 +76,242 @@ type FilterValidator interface {
 	// the current filtering) for a $contains check (i.e. a string field).
 	IsContainsCheckable(field string) bool
 }
+
+// FilterOperator is the parsed operator for a filter expression.
+type FilterOperator string
+
+const (
+	// FilterAnd joins all child expressions with logical AND.
+	FilterAnd FilterOperator = operatorAnd
+
+	// FilterOr joins all child expressions with logical OR.
+	FilterOr FilterOperator = operatorOr
+
+	// FilterNot negates its single child expression.
+	FilterNot FilterOperator = operatorNot
+
+	// FilterLT compares a field with less-than semantics.
+	FilterLT FilterOperator = operatorLT
+
+	// FilterLTE compares a field with less-than-or-equal semantics.
+	FilterLTE FilterOperator = operatorLTE
+
+	// FilterGT compares a field with greater-than semantics.
+	FilterGT FilterOperator = operatorGT
+
+	// FilterGTE compares a field with greater-than-or-equal semantics.
+	FilterGTE FilterOperator = operatorGTE
+
+	// FilterEQ compares a field with equality semantics.
+	FilterEQ FilterOperator = operatorEQ
+
+	// FilterNE compares a field with non-equality semantics.
+	FilterNE FilterOperator = operatorNE
+
+	// FilterNull checks whether a field is null.
+	FilterNull FilterOperator = operatorNull
+
+	// FilterExists checks whether a field exists.
+	FilterExists FilterOperator = operatorExists
+
+	// FilterContains checks whether a field contains text.
+	FilterContains FilterOperator = operatorContains
+)
+
+// FilterExpression is the database-neutral DSL produced by FilterParser.
+//
+// For logical operators, Expressions contains the nested filters. FilterNot always
+// contains exactly one nested expression. For field operators, Field contains the
+// camel-cased field name and Value contains the JSON-decoded comparison/check value.
+type FilterExpression struct {
+	Operator    FilterOperator
+	Field       string
+	Value       any
+	Expressions []FilterExpression
+}
+
+// FilterParser parses and validates serialized JSON filter specifications.
+type FilterParser struct {
+	validator FilterValidator
+}
+
+// NewFilterParser returns a parser that validates field operations with validator.
+func NewFilterParser(validator FilterValidator) FilterParser {
+	return FilterParser{validator: validator}
+}
+
+// Parse decodes one JSON filter specification and returns its validated filter expression.
+func (p FilterParser) Parse(decoder *json.Decoder) (FilterExpression, error) {
+	if decoder == nil {
+		return FilterExpression{}, errors.New("filter decoder is nil")
+	}
+
+	if p.validator == nil {
+		return FilterExpression{}, errors.New("filter validator is nil")
+	}
+
+	var raw any
+	if err := decoder.Decode(&raw); err != nil {
+		return FilterExpression{}, fmt.Errorf("decode filter: %w", err)
+	}
+
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return FilterExpression{}, errors.New("filter must contain exactly one JSON value")
+		}
+
+		return FilterExpression{}, fmt.Errorf("decode filter: %w", err)
+	}
+
+	return p.parseFilter(raw)
+}
+
+func (p FilterParser) parseFilter(raw any) (FilterExpression, error) {
+	object, ok := raw.(map[string]any)
+	if !ok {
+		return FilterExpression{}, fmt.Errorf("filter must be an object, got %T", raw)
+	}
+
+	if len(object) != 1 {
+		return FilterExpression{}, fmt.Errorf("filter object must contain exactly one clause, got %d", len(object))
+	}
+
+	for key, value := range object {
+		switch key {
+		case operatorAnd, operatorOr:
+			return p.parseLogicalList(key, value)
+		case operatorNot:
+			return p.parseLogicalNot(value)
+		default:
+			return p.parseFieldFilter(key, value)
+		}
+	}
+
+	return FilterExpression{}, errors.New("filter object is empty")
+}
+
+func (p FilterParser) parseLogicalList(operator string, raw any) (FilterExpression, error) {
+	values, ok := raw.([]any)
+	if !ok {
+		return FilterExpression{}, fmt.Errorf("%s filter must be an array", operator)
+	}
+
+	if len(values) == 0 {
+		return FilterExpression{}, fmt.Errorf("%s filter must contain at least one nested filter", operator)
+	}
+
+	expressions := make([]FilterExpression, 0, len(values))
+	for index, value := range values {
+		filter, err := p.parseFilter(value)
+		if err != nil {
+			return FilterExpression{}, fmt.Errorf("%s filter item %d: %w", operator, index, err)
+		}
+
+		expressions = append(expressions, filter)
+	}
+
+	return FilterExpression{Operator: FilterOperator(operator), Expressions: expressions}, nil
+}
+
+func (p FilterParser) parseLogicalNot(raw any) (FilterExpression, error) {
+	filter, err := p.parseFilter(raw)
+	if err != nil {
+		return FilterExpression{}, fmt.Errorf("%s filter: %w", operatorNot, err)
+	}
+
+	return FilterExpression{Operator: FilterNot, Expressions: []FilterExpression{filter}}, nil
+}
+
+func (p FilterParser) parseFieldFilter(field string, raw any) (FilterExpression, error) {
+	if !isValidFilterField(field) {
+		return FilterExpression{}, fmt.Errorf("invalid filter field %q", field)
+	}
+
+	operation, ok := raw.(map[string]any)
+	if !ok {
+		return FilterExpression{}, fmt.Errorf("filter field %q must contain an operation object", field)
+	}
+
+	if len(operation) != 1 {
+		return FilterExpression{}, fmt.Errorf("filter field %q must contain exactly one operation, got %d", field, len(operation))
+	}
+
+	for operator, value := range operation {
+		switch {
+		case isComparisonOperator(operator):
+			if !p.validator.IsValidCmpFilter(field, value) {
+				return FilterExpression{}, fmt.Errorf("comparison filter %q on field %q is not allowed", operator, field)
+			}
+
+			return FilterExpression{Operator: FilterOperator(operator), Field: field, Value: value}, nil
+		case operator == operatorNull:
+			boolValue, ok := value.(bool)
+			if !ok {
+				return FilterExpression{}, fmt.Errorf("%s filter on field %q must be boolean", operatorNull, field)
+			}
+
+			if !p.validator.IsNullCheckable(field) {
+				return FilterExpression{}, fmt.Errorf("%s filter on field %q is not allowed", operatorNull, field)
+			}
+
+			return FilterExpression{Operator: FilterNull, Field: field, Value: boolValue}, nil
+		case operator == operatorExists:
+			boolValue, ok := value.(bool)
+			if !ok {
+				return FilterExpression{}, fmt.Errorf("%s filter on field %q must be boolean", operatorExists, field)
+			}
+
+			if !p.validator.IsExistenceCheckable(field) {
+				return FilterExpression{}, fmt.Errorf("%s filter on field %q is not allowed", operatorExists, field)
+			}
+
+			return FilterExpression{Operator: FilterExists, Field: field, Value: boolValue}, nil
+		case operator == operatorContains:
+			stringValue, ok := value.(string)
+			if !ok {
+				return FilterExpression{}, fmt.Errorf("%s filter on field %q must be string", operatorContains, field)
+			}
+
+			if !p.validator.IsContainsCheckable(field) {
+				return FilterExpression{}, fmt.Errorf("%s filter on field %q is not allowed", operatorContains, field)
+			}
+
+			return FilterExpression{Operator: FilterContains, Field: field, Value: stringValue}, nil
+		default:
+			return FilterExpression{}, fmt.Errorf("unsupported filter operator %q on field %q", operator, field)
+		}
+	}
+
+	return FilterExpression{}, fmt.Errorf("filter field %q operation object is empty", field)
+}
+
+func isValidFilterField(field string) bool {
+	return filterFieldPattern.MatchString(field)
+}
+
+func isComparisonOperator(operator string) bool {
+	switch operator {
+	case operatorLT, operatorLTE, operatorGT, operatorGTE, operatorEQ, operatorNE:
+		return true
+	default:
+		return false
+	}
+}
+
+const (
+	operatorAnd      = "$and"
+	operatorOr       = "$or"
+	operatorNot      = "$not"
+	operatorLT       = "$lt"
+	operatorLTE      = "$lte"
+	operatorGT       = "$gt"
+	operatorGTE      = "$gte"
+	operatorEQ       = "$eq"
+	operatorNE       = "$ne"
+	operatorNull     = "$null"
+	operatorExists   = "$exists"
+	operatorContains = "$contains"
+)
+
+var filterFieldPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_]*$`)
