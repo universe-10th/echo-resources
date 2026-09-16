@@ -77,6 +77,17 @@ type FilterValidator interface {
 	IsContainsCheckable(field string) bool
 }
 
+// The FilterSource interface is an object that produces a valid instance of FilterSerializer
+// and FilterValidator in the same place. Engines should provide tools to spawn both of them,
+// accounting for appropriate field names mapping.
+type FilterSource[Query any] interface {
+	// Serializer spawns a filter serializer of the appropriate type.
+	Serializer() FilterSerializer[Query]
+
+	// Validator spawns a filter validator of the appropriate type.
+	Validator() FilterValidator
+}
+
 // FilterOperator is the parsed operator for a filter expression.
 type FilterOperator string
 
