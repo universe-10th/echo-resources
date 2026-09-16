@@ -29,7 +29,7 @@ type ListOptions struct {
 	Sort []Sort
 
 	// Filter can be empty. Implementations should validate fields against an allowlist.
-	Filter FilterExpression
+	Filter map[string]any
 }
 
 // The CollectionList interface supports methods to retrieve a single element or a page of elements.
