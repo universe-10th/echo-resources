@@ -75,6 +75,12 @@ type FilterValidator interface {
 	// IsContainsCheckable takes the name of a field and tells whether it is valid (for
 	// the current filtering) for a $contains check (i.e. a string field).
 	IsContainsCheckable(field string) bool
+
+	// IsSortable takes the name of a field and tells whether it is valid (for the
+	// current filtering) and it can be sorted. For SQL databases, most of the fields are
+	// sortable (numbers, strings, dates, incremental IDs). For MongoDB databases, most of
+	// the fields are sortable (compound fields are not).
+	IsSortable(field string) bool
 }
 
 // The FilterSource interface is an object that produces a valid instance of FilterSerializer
