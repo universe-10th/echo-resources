@@ -17,7 +17,10 @@ type Sort struct {
 	Order OrderType
 }
 
-// ListOptions describes pagination and ordering for list operations.
+// ListOptions describes pagination and ordering for list operations. By
+// the point this structure is read, the filter and sort are not validated
+// yet. The List / ListDeleted methods will first try to parse the filter
+// and sort values.
 type ListOptions struct {
 	// Skip is treated as 0 if negative.
 	Skip int
