@@ -1,5 +1,10 @@
 package types
 
+import (
+	"reflect"
+	"strings"
+)
+
 // ErrorCode stands for the supported error codes, intended
 // to tell about the type of error and to serve as HTTP
 // response codes.
@@ -215,3 +220,45 @@ var (
 	_ Error = ThrottledError{}
 	_ Error = InternalError{}
 )
+
+// RenderError renders an error to a map, to serve as a response.
+func RenderError(e Error) (map[string]any, uint16) {
+	rendered := map[string]any{}
+
+	value := reflect.ValueOf(e)
+	for value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			rendered["code"] = e.Code()
+			rendered["detail"] = e.Error()
+			return rendered, 0
+		}
+
+		value = value.Elem()
+	}
+
+	if value.Kind() == reflect.Struct {
+		valueType := value.Type()
+		for i := range value.NumField() {
+			fieldType := valueType.Field(i)
+			if fieldType.PkgPath != "" {
+				continue
+			}
+
+			name := fieldType.Name
+			if tag := fieldType.Tag.Get("json"); tag != "" {
+				tagName := strings.Split(tag, ",")[0]
+				if tagName == "-" {
+					continue
+				}
+				if tagName != "" {
+					name = tagName
+				}
+			}
+
+			rendered[name] = value.Field(i).Interface()
+		}
+	}
+
+	rendered["detail"] = e.Error()
+	return rendered, uint16(e.Code())
+}
