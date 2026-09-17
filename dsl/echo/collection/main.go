@@ -88,10 +88,32 @@ type WithSoftDeletedPrune interface {
 	Prune(c echo.Context) error
 }
 
-// WithCustomRoutes is a DSL interface to tell that the
-// resource to register supports creating custom routes.
-type WithCustomRoutes interface {
-	InstallCustomRoutes(g *echo.Group)
+// WithCustomCollectionRoutes is a DSL interface to tell
+// that the resource to register supports creating custom
+// routes for the non-deleted collection.
+type WithCustomCollectionRoutes interface {
+	InstallCustomCollectionRoutes(g *echo.Group)
+}
+
+// WithCustomItemRoutes is a DSL interface to tell that
+// the resource to register supports creating custom routes
+// for non-deleted items.
+type WithCustomItemRoutes interface {
+	InstallCustomItemRoutes(g *echo.Group)
+}
+
+// WithCustomCollectionDeletedRoutes is a DSL interface to
+// tell that the resource to register supports creating
+// custom routes for the deleted collection.
+type WithCustomCollectionDeletedRoutes interface {
+	InstallCustomCollectionDeletedRoutes(g *echo.Group)
+}
+
+// WithCustomItemDeletedRoutes is a DSL interface to tell
+// that the resource to register supports creating custom
+// routes for deleted items.
+type WithCustomItemDeletedRoutes interface {
+	InstallCustomItemDeletedRoutes(g *echo.Group)
 }
 
 // Register tries to register a DSL entry for a collection
@@ -117,34 +139,44 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 	withRestore, hasWithRestore := dsl.(WithSoftDeletedRestore)
 	withDeletedGet, hasWithDeletedGet := dsl.(WithSoftDeletedGet)
 	withPrune, hasWithPrune := dsl.(WithSoftDeletedPrune)
+	withCustomCollectionRoutes, hasWithCustomCollectionRoutes := dsl.(WithCustomCollectionRoutes)
+	withCustomItemRoutes, hasWithCustomItemRoutes := dsl.(WithCustomItemRoutes)
+	withCustomCollectionDeletedRoutes, hasWithCustomCollectionDeletedRoutes := dsl.(WithCustomCollectionDeletedRoutes)
+	withCustomItemDeletedRoutes, hasWithCustomItemDeletedRoutes := dsl.(WithCustomItemDeletedRoutes)
 
 	// First, let's tackle the deleted stuff here.
-	if hasWithDeletedList || hasWithDeletedGet || hasWithPrune || hasWithRestore {
+	if hasWithDeletedList || hasWithDeletedGet || hasWithPrune || hasWithRestore ||
+		hasWithCustomCollectionDeletedRoutes || hasWithCustomItemDeletedRoutes {
 		collectionDeletedGroup := g.Group("/"+prefix+"/deleted", dsl.Middlewares()...)
 
 		if hasWithDeletedList {
 			collectionDeletedGroup.GET("", withDeletedList.ListDeleted)
 		}
+		if hasWithCustomCollectionDeletedRoutes {
+			withCustomCollectionDeletedRoutes.InstallCustomCollectionDeletedRoutes(collectionDeletedGroup)
+		}
 
-		if hasWithDeletedGet || hasWithPrune || hasWithRestore {
+		if hasWithDeletedGet || hasWithPrune || hasWithRestore || hasWithCustomItemDeletedRoutes {
 			itemDeletedGroup := collectionDeletedGroup.Group("/:"+urlArg, dsl.FetchMiddleware(true))
 
 			if hasWithRestore {
 				itemDeletedGroup.POST("", withRestore.Restore)
 			}
-
 			if hasWithDeletedGet {
 				itemDeletedGroup.GET("", withDeletedGet.GetDeleted)
 			}
-
 			if hasWithPrune {
 				itemDeletedGroup.DELETE("", withPrune.Prune)
+			}
+			if hasWithCustomItemDeletedRoutes {
+				withCustomItemDeletedRoutes.InstallCustomItemDeletedRoutes(itemDeletedGroup)
 			}
 		}
 	}
 
 	// Then, track the non-deleted stuff.
-	if !(hasWithList || hasWithCreate || hasWithUpdate || hasWithGet || hasWithDelete) {
+	if !(hasWithList || hasWithCreate || hasWithUpdate || hasWithGet || hasWithDelete ||
+		hasWithCustomCollectionRoutes || hasWithCustomItemRoutes) {
 		return nil, nil
 	}
 
@@ -156,8 +188,11 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 	if hasWithCreate {
 		collectionGroup.POST("", withCreate.Create)
 	}
+	if hasWithCustomCollectionRoutes {
+		withCustomCollectionRoutes.InstallCustomCollectionRoutes(collectionGroup)
+	}
 
-	if !(hasWithUpdate || hasWithGet || hasWithDelete) {
+	if !(hasWithUpdate || hasWithGet || hasWithDelete || hasWithCustomItemRoutes) {
 		return nil, nil
 	}
 
@@ -171,6 +206,9 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 	}
 	if hasWithGet {
 		itemGroup.GET("", withGet.Get)
+	}
+	if hasWithCustomItemRoutes {
+		withCustomItemRoutes.InstallCustomItemRoutes(itemGroup)
 	}
 
 	return itemGroup, nil
