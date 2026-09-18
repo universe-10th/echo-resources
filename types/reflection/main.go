@@ -86,7 +86,7 @@ func (fieldsMapping FieldsMapping) StorageToField(field string) string {
 
 // NewFieldsMapping creates a FieldsMapping instance from a generic resource
 // type and a custom mapping function (intended per-storage-engine).
-func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]](customFieldToStorage MappingFunc) FieldsMapping {
+func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]](customFieldToStorage MappingFunc) *FieldsMapping {
 	var value RT
 	jsonToField := JSONToField(value)
 	fieldToJson := map[string]string{}
@@ -99,7 +99,7 @@ func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]](customFieldToStora
 		storageToField[val] = key
 	}
 
-	return FieldsMapping{
+	return &FieldsMapping{
 		jsonToField:    jsonToField,
 		fieldToJson:    fieldToJson,
 		fieldToStorage: fieldToStorage,

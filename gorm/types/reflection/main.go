@@ -104,6 +104,6 @@ func toSnakeCase(value string) string {
 
 // NewFieldsMapping creates a FieldsMapping instance from a generic resource
 // type and a custom mapping function (intended for GORM).
-func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]]() reflection.FieldsMapping {
+func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]]() *reflection.FieldsMapping {
 	return reflection.NewFieldsMapping[IDT, RT](FieldToStorage)
 }
