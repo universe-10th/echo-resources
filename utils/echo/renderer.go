@@ -56,12 +56,14 @@ func MakeCollectionRenderer[IDT comparable, RT types.Resource[IDT]]() Collection
 				"skip":  skip,
 				"count": len(objs),
 				"total": total,
+				"items": objs,
 			})
 		case []*RT:
 			return context.JSON(code, map[string]any{
 				"skip":  skip,
 				"count": len(objs),
 				"total": total,
+				"items": objs,
 			})
 		default:
 			response, code := types.RenderError(types.InternalError{})
@@ -86,6 +88,7 @@ func MakeMappedCollectionRenderer[IDT comparable, RT types.Resource[IDT], OT any
 				"skip":  skip,
 				"count": len_,
 				"total": total,
+				"items": projected,
 			})
 		case []*RT:
 			len_ := len(objs)
@@ -97,6 +100,7 @@ func MakeMappedCollectionRenderer[IDT comparable, RT types.Resource[IDT], OT any
 				"skip":  skip,
 				"count": len_,
 				"total": total,
+				"items": projected,
 			})
 		default:
 			response, code := types.RenderError(types.InternalError{})
