@@ -52,13 +52,19 @@ func TestJSONToFieldRejectsNonStructValues(t *testing.T) {
 	}
 }
 
-func TestJSONToFieldRejectsNilPointers(t *testing.T) {
+func TestJSONToFieldAcceptsNilPointers(t *testing.T) {
 	t.Parallel()
 
 	var value *jsonToFieldTestValue
 
 	got := JSONToField(value)
-	if len(got) != 0 {
-		t.Fatalf("expected empty mapping, got %#v", got)
+	want := map[string]string{
+		"id":      "ID",
+		"name":    "Name",
+		"Enabled": "Enabled",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected mapping\nwant: %#v\n got: %#v", want, got)
 	}
 }
