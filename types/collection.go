@@ -12,10 +12,10 @@ type ListOptions struct {
 	Limit int
 
 	// Sort can be empty. Implementations should validate fields against an allowlist.
-	Sort []Sort
+	Sort SortExpression
 
 	// Filter can be empty. Implementations should validate fields against an allowlist.
-	Filter map[string]any
+	Filter FilterExpression
 }
 
 // The CollectionList interface supports methods to retrieve a single element or a page of elements.
