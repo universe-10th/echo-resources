@@ -95,11 +95,11 @@ type WithCustomCollectionRoutes interface {
 	InstallCustomCollectionRoutes(g *echo.Group)
 }
 
-// WithCustomItemRoutes is a DSL interface to tell that
+// WithCustomElementRoutes is a DSL interface to tell that
 // the resource to register supports creating custom routes
 // for non-deleted items.
-type WithCustomItemRoutes interface {
-	InstallCustomItemRoutes(g *echo.Group)
+type WithCustomElementRoutes interface {
+	InstallCustomElementRoutes(g *echo.Group)
 }
 
 // WithCustomCollectionDeletedRoutes is a DSL interface to
@@ -109,11 +109,11 @@ type WithCustomCollectionDeletedRoutes interface {
 	InstallCustomCollectionDeletedRoutes(g *echo.Group)
 }
 
-// WithCustomItemDeletedRoutes is a DSL interface to tell
+// WithCustomElementDeletedRoutes is a DSL interface to tell
 // that the resource to register supports creating custom
 // routes for deleted items.
-type WithCustomItemDeletedRoutes interface {
-	InstallCustomItemDeletedRoutes(g *echo.Group)
+type WithCustomElementDeletedRoutes interface {
+	InstallCustomElementDeletedRoutes(g *echo.Group)
 }
 
 // Register tries to register a DSL entry for a collection
@@ -140,13 +140,13 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 	withDeletedGet, hasWithDeletedGet := dsl.(WithSoftDeletedGet)
 	withPrune, hasWithPrune := dsl.(WithSoftDeletedPrune)
 	withCustomCollectionRoutes, hasWithCustomCollectionRoutes := dsl.(WithCustomCollectionRoutes)
-	withCustomItemRoutes, hasWithCustomItemRoutes := dsl.(WithCustomItemRoutes)
+	withCustomElementRoutes, hasWithCustomElementRoutes := dsl.(WithCustomElementRoutes)
 	withCustomCollectionDeletedRoutes, hasWithCustomCollectionDeletedRoutes := dsl.(WithCustomCollectionDeletedRoutes)
-	withCustomItemDeletedRoutes, hasWithCustomItemDeletedRoutes := dsl.(WithCustomItemDeletedRoutes)
+	withCustomElementDeletedRoutes, hasWithCustomElementDeletedRoutes := dsl.(WithCustomElementDeletedRoutes)
 
 	// First, let's tackle the deleted stuff here.
 	if hasWithDeletedList || hasWithDeletedGet || hasWithPrune || hasWithRestore ||
-		hasWithCustomCollectionDeletedRoutes || hasWithCustomItemDeletedRoutes {
+		hasWithCustomCollectionDeletedRoutes || hasWithCustomElementDeletedRoutes {
 		collectionDeletedGroup := g.Group("/"+prefix+"/deleted", dsl.Middlewares()...)
 
 		if hasWithDeletedList {
@@ -156,7 +156,7 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 			withCustomCollectionDeletedRoutes.InstallCustomCollectionDeletedRoutes(collectionDeletedGroup)
 		}
 
-		if hasWithDeletedGet || hasWithPrune || hasWithRestore || hasWithCustomItemDeletedRoutes {
+		if hasWithDeletedGet || hasWithPrune || hasWithRestore || hasWithCustomElementDeletedRoutes {
 			itemDeletedGroup := collectionDeletedGroup.Group("/:"+urlArg, dsl.FetchMiddleware(true))
 
 			if hasWithRestore {
@@ -168,15 +168,15 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 			if hasWithPrune {
 				itemDeletedGroup.DELETE("", withPrune.Prune)
 			}
-			if hasWithCustomItemDeletedRoutes {
-				withCustomItemDeletedRoutes.InstallCustomItemDeletedRoutes(itemDeletedGroup)
+			if hasWithCustomElementDeletedRoutes {
+				withCustomElementDeletedRoutes.InstallCustomElementDeletedRoutes(itemDeletedGroup)
 			}
 		}
 	}
 
 	// Then, track the non-deleted stuff.
 	if !(hasWithList || hasWithCreate || hasWithUpdate || hasWithGet || hasWithDelete ||
-		hasWithCustomCollectionRoutes || hasWithCustomItemRoutes) {
+		hasWithCustomCollectionRoutes || hasWithCustomElementRoutes) {
 		return nil, nil
 	}
 
@@ -192,7 +192,7 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 		withCustomCollectionRoutes.InstallCustomCollectionRoutes(collectionGroup)
 	}
 
-	if !(hasWithUpdate || hasWithGet || hasWithDelete || hasWithCustomItemRoutes) {
+	if !(hasWithUpdate || hasWithGet || hasWithDelete || hasWithCustomElementRoutes) {
 		return nil, nil
 	}
 
@@ -207,8 +207,8 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 	if hasWithGet {
 		itemGroup.GET("", withGet.Get)
 	}
-	if hasWithCustomItemRoutes {
-		withCustomItemRoutes.InstallCustomItemRoutes(itemGroup)
+	if hasWithCustomElementRoutes {
+		withCustomElementRoutes.InstallCustomElementRoutes(itemGroup)
 	}
 
 	return itemGroup, nil
