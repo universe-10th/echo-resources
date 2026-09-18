@@ -16,3 +16,13 @@ type Sort struct {
 	Field string
 	Order OrderType
 }
+
+// The SortValidator has methods to test whether a sort can be done for
+// a specific field. As of today, this sort only includes Asc and Desc.
+type SortValidator interface {
+	// IsSortable takes the name of a field and tells whether it is valid (for the
+	// current filtering) and it can be sorted. For SQL databases, most of the fields are
+	// sortable (numbers, strings, dates, incremental IDs). For MongoDB databases, most of
+	// the fields are sortable (compound fields are not).
+	IsSortable(field string, orderType OrderType) bool
+}
