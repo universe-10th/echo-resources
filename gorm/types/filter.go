@@ -8,44 +8,50 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	gormreflection "github.com/universe-10th/echo-resources/gorm/types/reflection"
 	resourcetypes "github.com/universe-10th/echo-resources/types"
+	resourcereflection "github.com/universe-10th/echo-resources/types/reflection"
 	"gorm.io/gorm"
 )
 
-// FilterSource derives GORM filter validation and serialization from a model struct.
+// FilterSource derives GORM filter validation and serialization from a field mapping.
 type FilterSource struct {
-	model any
+	mapping    *resourcereflection.FieldsMapping
+	serializer FilterSerializer
+	validator  FilterValidator
 }
 
-// NewFilterSource returns a FilterSource for the supplied GORM model.
-func NewFilterSource(model any) FilterSource {
-	return FilterSource{model: model}
+// NewFilterSource returns a FilterSource for the supplied GORM field mapping.
+func NewFilterSource(mapping *resourcereflection.FieldsMapping) FilterSource {
+	return FilterSource{
+		mapping:    mapping,
+		serializer: NewFilterSerializer(mapping),
+		validator:  NewFilterValidator(mapping),
+	}
 }
 
 // Serializer returns a GORM SQL predicate serializer.
 func (s FilterSource) Serializer() resourcetypes.FilterSerializer[string] {
-	return NewFilterSerializer(s.model)
+	return s.serializer
 }
 
 // Validator returns a GORM filter validator.
 func (s FilterSource) Validator() resourcetypes.FilterValidator {
-	return NewFilterValidator(s.model)
+	return s.validator
 }
 
-// FilterValidator validates filter fields and values against a GORM model struct.
+// FilterValidator validates filter fields and values against a GORM field mapping.
 type FilterValidator struct {
-	fields map[string]filterField
+	mapping *resourcereflection.FieldsMapping
 }
 
-// NewFilterValidator returns a validator for the supplied GORM model.
-func NewFilterValidator(model any) FilterValidator {
-	return FilterValidator{fields: collectFilterFields(model)}
+// NewFilterValidator returns a validator for the supplied GORM field mapping.
+func NewFilterValidator(mapping *resourcereflection.FieldsMapping) FilterValidator {
+	return FilterValidator{mapping: mapping}
 }
 
 // IsValidCmpFilter reports whether filter is a known field and value fits its Go type.
 func (v FilterValidator) IsValidCmpFilter(filter string, value any) bool {
-	field, ok := v.fields[filter]
+	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -55,7 +61,7 @@ func (v FilterValidator) IsValidCmpFilter(filter string, value any) bool {
 
 // IsNullCheckable reports whether filter can be checked for SQL NULL.
 func (v FilterValidator) IsNullCheckable(filter string) bool {
-	field, ok := v.fields[filter]
+	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -70,7 +76,7 @@ func (v FilterValidator) IsExistenceCheckable(string) bool {
 
 // IsContainsCheckable reports whether filter is a string field.
 func (v FilterValidator) IsContainsCheckable(filter string) bool {
-	field, ok := v.fields[filter]
+	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -80,22 +86,22 @@ func (v FilterValidator) IsContainsCheckable(filter string) bool {
 
 // IsSortable reports whether filter can be used in SQL ORDER BY expressions.
 func (v FilterValidator) IsSortable(filter string) bool {
-	field, ok := v.fields[filter]
+	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
 
-	return isScalar(field.Type)
+	return isScalar(field.Type) && !hasUnsortableGORMType(field)
 }
 
 // FilterSerializer serializes parsed filters into GORM SQL predicate strings.
 type FilterSerializer struct {
-	fields map[string]filterField
+	mapping *resourcereflection.FieldsMapping
 }
 
-// NewFilterSerializer returns a serializer for the supplied GORM model.
-func NewFilterSerializer(model any) FilterSerializer {
-	return FilterSerializer{fields: collectFilterFields(model)}
+// NewFilterSerializer returns a serializer for the supplied GORM field mapping.
+func NewFilterSerializer(mapping *resourcereflection.FieldsMapping) FilterSerializer {
+	return FilterSerializer{mapping: mapping}
 }
 
 // Serialize serializes filter into a SQL predicate string.
@@ -113,43 +119,43 @@ func (s FilterSerializer) Serialize(filter resourcetypes.FilterExpression) strin
 		return fmt.Sprintf("NOT (%s)", s.Serialize(filter.Expressions[0]))
 	case resourcetypes.FilterLT, resourcetypes.FilterLTE, resourcetypes.FilterGT,
 		resourcetypes.FilterGTE, resourcetypes.FilterEQ, resourcetypes.FilterNE:
-		field, ok := s.fields[filter.Field]
-		if !ok {
+		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		if storageName == "" {
 			return ""
 		}
 
-		return fmt.Sprintf("%s %s %s", quoteIdentifier(field.StorageName), sqlOperator(filter.Operator), sqlLiteral(filter.Value))
+		return fmt.Sprintf("%s %s %s", quoteIdentifier(storageName), sqlOperator(filter.Operator), sqlLiteral(filter.Value))
 	case resourcetypes.FilterNull:
-		field, ok := s.fields[filter.Field]
-		if !ok {
+		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		if storageName == "" {
 			return ""
 		}
 
 		if value, _ := filter.Value.(bool); value {
-			return fmt.Sprintf("%s IS NULL", quoteIdentifier(field.StorageName))
+			return fmt.Sprintf("%s IS NULL", quoteIdentifier(storageName))
 		}
 
-		return fmt.Sprintf("%s IS NOT NULL", quoteIdentifier(field.StorageName))
+		return fmt.Sprintf("%s IS NOT NULL", quoteIdentifier(storageName))
 	case resourcetypes.FilterExists:
-		field, ok := s.fields[filter.Field]
-		if !ok {
+		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		if storageName == "" {
 			return ""
 		}
 
 		if value, _ := filter.Value.(bool); value {
-			return fmt.Sprintf("%s IS NOT NULL", quoteIdentifier(field.StorageName))
+			return fmt.Sprintf("%s IS NOT NULL", quoteIdentifier(storageName))
 		}
 
-		return fmt.Sprintf("%s IS NULL", quoteIdentifier(field.StorageName))
+		return fmt.Sprintf("%s IS NULL", quoteIdentifier(storageName))
 	case resourcetypes.FilterContains:
-		field, ok := s.fields[filter.Field]
-		if !ok {
+		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		if storageName == "" {
 			return ""
 		}
 
 		return fmt.Sprintf(
 			"%s LIKE %s ESCAPE '\\'",
-			quoteIdentifier(field.StorageName),
+			quoteIdentifier(storageName),
 			sqlLiteral("%"+escapeLike(fmt.Sprint(filter.Value))+"%"),
 		)
 	default:
@@ -173,73 +179,6 @@ func (s FilterSerializer) serializeLogical(operator string, expressions []resour
 	}
 
 	return strings.Join(parts, " "+operator+" ")
-}
-
-type filterField struct {
-	JSONName    string
-	FieldName   string
-	StorageName string
-	Type        reflect.Type
-}
-
-func collectFilterFields(model any) map[string]filterField {
-	fields := map[string]filterField{}
-
-	modelType := indirectType(reflect.TypeOf(model))
-	if modelType == nil || modelType.Kind() != reflect.Struct {
-		return fields
-	}
-
-	fieldToStorage := gormreflection.FieldToStorage(model)
-	collectFilterFieldsFromType(modelType, fieldToStorage, fields)
-	return fields
-}
-
-func collectFilterFieldsFromType(modelType reflect.Type, fieldToStorage map[string]string, fields map[string]filterField) {
-	for i := range modelType.NumField() {
-		field := modelType.Field(i)
-		if field.PkgPath != "" {
-			continue
-		}
-
-		tagName, skip := jsonTagName(field)
-		if skip {
-			continue
-		}
-
-		fieldType := indirectType(field.Type)
-		if field.Anonymous && tagName == "" && fieldType != nil && fieldType.Kind() == reflect.Struct {
-			collectFilterFieldsFromType(fieldType, fieldToStorage, fields)
-			continue
-		}
-
-		storageName := fieldToStorage[field.Name]
-		if storageName == "" {
-			continue
-		}
-
-		jsonName := tagName
-		if jsonName == "" {
-			jsonName = field.Name
-		}
-
-		fields[jsonName] = filterField{
-			JSONName:    jsonName,
-			FieldName:   field.Name,
-			StorageName: storageName,
-			Type:        field.Type,
-		}
-	}
-}
-
-func jsonTagName(field reflect.StructField) (string, bool) {
-	tag := field.Tag.Get("json")
-	if tag == "" {
-		return "", false
-	}
-
-	name, _, _ := strings.Cut(tag, ",")
-	return name, name == "-"
 }
 
 func acceptsValue(valueType reflect.Type, value any) bool {
@@ -270,24 +209,7 @@ func acceptsValue(valueType reflect.Type, value any) bool {
 		return acceptsValue(reflect.TypeOf(time.Time{}), value)
 	}
 
-	switch valueType.Kind() {
-	case reflect.String:
-		_, ok := value.(string)
-		return ok
-	case reflect.Bool:
-		_, ok := value.(bool)
-		return ok
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return isIntegralNumber(value)
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		number, ok := numericValue(value)
-		return ok && number >= 0 && number == float64(uint64(number))
-	case reflect.Float32, reflect.Float64:
-		_, ok := numericValue(value)
-		return ok
-	default:
-		return false
-	}
+	return resourcereflection.AcceptsScalarValue(valueType, value)
 }
 
 func isNullable(valueType reflect.Type) bool {
@@ -332,46 +254,6 @@ func dereferenceType(valueType reflect.Type) reflect.Type {
 	}
 
 	return valueType
-}
-
-func indirectType(valueType reflect.Type) reflect.Type {
-	return dereferenceType(valueType)
-}
-
-func isIntegralNumber(value any) bool {
-	number, ok := numericValue(value)
-	return ok && number == float64(int64(number))
-}
-
-func numericValue(value any) (float64, bool) {
-	switch typed := value.(type) {
-	case float64:
-		return typed, true
-	case float32:
-		return float64(typed), true
-	case int:
-		return float64(typed), true
-	case int8:
-		return float64(typed), true
-	case int16:
-		return float64(typed), true
-	case int32:
-		return float64(typed), true
-	case int64:
-		return float64(typed), true
-	case uint:
-		return float64(typed), true
-	case uint8:
-		return float64(typed), true
-	case uint16:
-		return float64(typed), true
-	case uint32:
-		return float64(typed), true
-	case uint64:
-		return float64(typed), true
-	default:
-		return 0, false
-	}
 }
 
 func sqlOperator(operator resourcetypes.FilterOperator) string {
@@ -429,6 +311,39 @@ func escapeLike(value string) string {
 	value = strings.ReplaceAll(value, `%`, `\%`)
 	value = strings.ReplaceAll(value, `_`, `\_`)
 	return value
+}
+
+func hasUnsortableGORMType(field reflect.StructField) bool {
+	tag := parseGORMTag(field.Tag.Get("gorm"))
+	storageType := strings.ToLower(tag["type"])
+
+	switch storageType {
+	case "text", "tinytext", "mediumtext", "longtext",
+		"blob", "tinyblob", "mediumblob", "longblob",
+		"json", "jsonb":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseGORMTag(tag string) map[string]string {
+	values := map[string]string{}
+	for _, part := range strings.Split(tag, ";") {
+		if part == "" {
+			continue
+		}
+
+		key, value, ok := strings.Cut(part, ":")
+		if !ok {
+			values[strings.ToLower(part)] = ""
+			continue
+		}
+
+		values[strings.ToLower(key)] = value
+	}
+
+	return values
 }
 
 var (

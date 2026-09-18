@@ -5,44 +5,50 @@ import (
 	"regexp"
 	"time"
 
-	mongoreflection "github.com/universe-10th/echo-resources/mongo/types/reflection"
 	resourcetypes "github.com/universe-10th/echo-resources/types"
+	resourcereflection "github.com/universe-10th/echo-resources/types/reflection"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// FilterSource derives MongoDB filter validation and serialization from a document struct.
+// FilterSource derives MongoDB filter validation and serialization from a field mapping.
 type FilterSource struct {
-	document any
+	mapping    *resourcereflection.FieldsMapping
+	serializer FilterSerializer
+	validator  FilterValidator
 }
 
-// NewFilterSource returns a FilterSource for the supplied MongoDB document.
-func NewFilterSource(document any) FilterSource {
-	return FilterSource{document: document}
+// NewFilterSource returns a FilterSource for the supplied MongoDB field mapping.
+func NewFilterSource(mapping *resourcereflection.FieldsMapping) FilterSource {
+	return FilterSource{
+		mapping:    mapping,
+		serializer: NewFilterSerializer(mapping),
+		validator:  NewFilterValidator(mapping),
+	}
 }
 
 // Serializer returns a MongoDB BSON filter serializer.
 func (s FilterSource) Serializer() resourcetypes.FilterSerializer[bson.M] {
-	return NewFilterSerializer(s.document)
+	return s.serializer
 }
 
 // Validator returns a MongoDB filter validator.
 func (s FilterSource) Validator() resourcetypes.FilterValidator {
-	return NewFilterValidator(s.document)
+	return s.validator
 }
 
-// FilterValidator validates filter fields and values against a MongoDB document struct.
+// FilterValidator validates filter fields and values against a MongoDB field mapping.
 type FilterValidator struct {
-	fields map[string]filterField
+	mapping *resourcereflection.FieldsMapping
 }
 
-// NewFilterValidator returns a validator for the supplied MongoDB document.
-func NewFilterValidator(document any) FilterValidator {
-	return FilterValidator{fields: collectFilterFields(document)}
+// NewFilterValidator returns a validator for the supplied MongoDB field mapping.
+func NewFilterValidator(mapping *resourcereflection.FieldsMapping) FilterValidator {
+	return FilterValidator{mapping: mapping}
 }
 
 // IsValidCmpFilter reports whether filter is a known field and value fits its Go type.
 func (v FilterValidator) IsValidCmpFilter(filter string, value any) bool {
-	field, ok := v.fields[filter]
+	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -52,7 +58,7 @@ func (v FilterValidator) IsValidCmpFilter(filter string, value any) bool {
 
 // IsNullCheckable reports whether filter can be checked for null.
 func (v FilterValidator) IsNullCheckable(filter string) bool {
-	field, ok := v.fields[filter]
+	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -62,13 +68,12 @@ func (v FilterValidator) IsNullCheckable(filter string) bool {
 
 // IsExistenceCheckable reports whether filter can be checked for existence.
 func (v FilterValidator) IsExistenceCheckable(filter string) bool {
-	_, ok := v.fields[filter]
-	return ok
+	return resourcereflection.FieldForJSON(v.mapping, filter) != ""
 }
 
 // IsContainsCheckable reports whether filter is a string field.
 func (v FilterValidator) IsContainsCheckable(filter string) bool {
-	field, ok := v.fields[filter]
+	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -78,7 +83,7 @@ func (v FilterValidator) IsContainsCheckable(filter string) bool {
 
 // IsSortable reports whether filter can be used in MongoDB sort expressions.
 func (v FilterValidator) IsSortable(filter string) bool {
-	field, ok := v.fields[filter]
+	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -88,12 +93,12 @@ func (v FilterValidator) IsSortable(filter string) bool {
 
 // FilterSerializer serializes parsed filters into MongoDB BSON filters.
 type FilterSerializer struct {
-	fields map[string]filterField
+	mapping *resourcereflection.FieldsMapping
 }
 
-// NewFilterSerializer returns a serializer for the supplied MongoDB document.
-func NewFilterSerializer(document any) FilterSerializer {
-	return FilterSerializer{fields: collectFilterFields(document)}
+// NewFilterSerializer returns a serializer for the supplied MongoDB field mapping.
+func NewFilterSerializer(mapping *resourcereflection.FieldsMapping) FilterSerializer {
+	return FilterSerializer{mapping: mapping}
 }
 
 // Serialize serializes filter into a bson.M predicate.
@@ -111,8 +116,8 @@ func (s FilterSerializer) Serialize(filter resourcetypes.FilterExpression) bson.
 		return bson.M{"$nor": bson.A{s.Serialize(filter.Expressions[0])}}
 	case resourcetypes.FilterLT, resourcetypes.FilterLTE, resourcetypes.FilterGT,
 		resourcetypes.FilterGTE, resourcetypes.FilterEQ, resourcetypes.FilterNE:
-		field, ok := s.fields[filter.Field]
-		if !ok {
+		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		if storageName == "" {
 			return bson.M{}
 		}
 
@@ -121,37 +126,37 @@ func (s FilterSerializer) Serialize(filter resourcetypes.FilterExpression) bson.
 			return bson.M{}
 		}
 		if operator == "$eq" {
-			return bson.M{field.StorageName: filter.Value}
+			return bson.M{storageName: filter.Value}
 		}
 
-		return bson.M{field.StorageName: bson.M{operator: filter.Value}}
+		return bson.M{storageName: bson.M{operator: filter.Value}}
 	case resourcetypes.FilterNull:
-		field, ok := s.fields[filter.Field]
-		if !ok {
+		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		if storageName == "" {
 			return bson.M{}
 		}
 
 		if value, _ := filter.Value.(bool); value {
-			return bson.M{field.StorageName: nil}
+			return bson.M{storageName: nil}
 		}
 
-		return bson.M{field.StorageName: bson.M{"$ne": nil}}
+		return bson.M{storageName: bson.M{"$ne": nil}}
 	case resourcetypes.FilterExists:
-		field, ok := s.fields[filter.Field]
-		if !ok {
+		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		if storageName == "" {
 			return bson.M{}
 		}
 
 		value, _ := filter.Value.(bool)
-		return bson.M{field.StorageName: bson.M{"$exists": value}}
+		return bson.M{storageName: bson.M{"$exists": value}}
 	case resourcetypes.FilterContains:
-		field, ok := s.fields[filter.Field]
-		if !ok {
+		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		if storageName == "" {
 			return bson.M{}
 		}
 
 		value, _ := filter.Value.(string)
-		return bson.M{field.StorageName: bson.M{"$regex": regexp.QuoteMeta(value)}}
+		return bson.M{storageName: bson.M{"$regex": regexp.QuoteMeta(value)}}
 	default:
 		return bson.M{}
 	}
@@ -168,72 +173,6 @@ func (s FilterSerializer) serializeLogical(operator string, expressions []resour
 	}
 
 	return bson.M{operator: parts}
-}
-
-type filterField struct {
-	JSONName    string
-	FieldName   string
-	StorageName string
-	Type        reflect.Type
-}
-
-func collectFilterFields(document any) map[string]filterField {
-	fields := map[string]filterField{}
-
-	documentType := indirectType(reflect.TypeOf(document))
-	if documentType == nil || documentType.Kind() != reflect.Struct {
-		return fields
-	}
-
-	fieldToStorage := mongoreflection.FieldToStorage(document)
-	collectFilterFieldsFromType(documentType, fieldToStorage, fields)
-	return fields
-}
-
-func collectFilterFieldsFromType(documentType reflect.Type, fieldToStorage map[string]string, fields map[string]filterField) {
-	for i := range documentType.NumField() {
-		field := documentType.Field(i)
-		if field.PkgPath != "" {
-			continue
-		}
-
-		jsonName, skip := jsonTagName(field)
-		if skip {
-			continue
-		}
-
-		fieldType := indirectType(field.Type)
-		if field.Anonymous && jsonName == "" && fieldType != nil && fieldType.Kind() == reflect.Struct {
-			collectFilterFieldsFromType(fieldType, fieldToStorage, fields)
-			continue
-		}
-
-		storageName := fieldToStorage[field.Name]
-		if storageName == "" {
-			continue
-		}
-
-		if jsonName == "" {
-			jsonName = field.Name
-		}
-
-		fields[jsonName] = filterField{
-			JSONName:    jsonName,
-			FieldName:   field.Name,
-			StorageName: storageName,
-			Type:        field.Type,
-		}
-	}
-}
-
-func jsonTagName(field reflect.StructField) (string, bool) {
-	tag := field.Tag.Get("json")
-	if tag == "" {
-		return "", false
-	}
-
-	name, _, _ := stringsCut(tag, ",")
-	return name, name == "-"
 }
 
 func acceptsValue(valueType reflect.Type, value any) bool {
@@ -261,24 +200,7 @@ func acceptsValue(valueType reflect.Type, value any) bool {
 		return err == nil
 	}
 
-	switch valueType.Kind() {
-	case reflect.String:
-		_, ok := value.(string)
-		return ok
-	case reflect.Bool:
-		_, ok := value.(bool)
-		return ok
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return isIntegralNumber(value)
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		number, ok := numericValue(value)
-		return ok && number >= 0 && number == float64(uint64(number))
-	case reflect.Float32, reflect.Float64:
-		_, ok := numericValue(value)
-		return ok
-	default:
-		return false
-	}
+	return resourcereflection.AcceptsScalarValue(valueType, value)
 }
 
 func isNullable(valueType reflect.Type) bool {
@@ -322,46 +244,6 @@ func dereferenceType(valueType reflect.Type) reflect.Type {
 	return valueType
 }
 
-func indirectType(valueType reflect.Type) reflect.Type {
-	return dereferenceType(valueType)
-}
-
-func isIntegralNumber(value any) bool {
-	number, ok := numericValue(value)
-	return ok && number == float64(int64(number))
-}
-
-func numericValue(value any) (float64, bool) {
-	switch typed := value.(type) {
-	case float64:
-		return typed, true
-	case float32:
-		return float64(typed), true
-	case int:
-		return float64(typed), true
-	case int8:
-		return float64(typed), true
-	case int16:
-		return float64(typed), true
-	case int32:
-		return float64(typed), true
-	case int64:
-		return float64(typed), true
-	case uint:
-		return float64(typed), true
-	case uint8:
-		return float64(typed), true
-	case uint16:
-		return float64(typed), true
-	case uint32:
-		return float64(typed), true
-	case uint64:
-		return float64(typed), true
-	default:
-		return 0, false
-	}
-}
-
 func mongoOperator(operator resourcetypes.FilterOperator) string {
 	switch operator {
 	case resourcetypes.FilterLT:
@@ -388,16 +270,6 @@ func toString(value any) string {
 	}
 
 	return ""
-}
-
-func stringsCut(value string, separator string) (string, string, bool) {
-	for i := 0; i+len(separator) <= len(value); i++ {
-		if value[i:i+len(separator)] == separator {
-			return value[:i], value[i+len(separator):], true
-		}
-	}
-
-	return value, "", false
 }
 
 var (

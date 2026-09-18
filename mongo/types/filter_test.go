@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	mongoreflection "github.com/universe-10th/echo-resources/mongo/types/reflection"
 	resourcetypes "github.com/universe-10th/echo-resources/types"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -18,7 +19,15 @@ type filterProduct struct {
 func TestFilterValidatorUsesDocumentFields(t *testing.T) {
 	t.Parallel()
 
-	validator := NewFilterValidator(filterProduct{})
+	mapping := mongoreflection.NewFieldsMapping[bson.ObjectID, filterProduct]()
+	validator := NewFilterValidator(mapping)
+
+	if mapping.ResourceType() != reflect.TypeOf(filterProduct{}) {
+		t.Fatal("expected mapping to expose resource type")
+	}
+	if mapping.IDType() != reflect.TypeOf(bson.ObjectID{}) {
+		t.Fatal("expected mapping to expose ID type")
+	}
 
 	if !validator.IsValidCmpFilter("id", bson.NewObjectID().Hex()) {
 		t.Fatal("expected ObjectID hex string to be valid for id field")
@@ -46,7 +55,7 @@ func TestFilterValidatorUsesDocumentFields(t *testing.T) {
 func TestFilterSerializerProducesBSONPredicate(t *testing.T) {
 	t.Parallel()
 
-	serializer := NewFilterSerializer(filterProduct{})
+	serializer := NewFilterSerializer(mongoreflection.NewFieldsMapping[bson.ObjectID, filterProduct]())
 
 	got := serializer.Serialize(resourcetypes.FilterExpression{
 		Operator: resourcetypes.FilterAnd,

@@ -1,14 +1,17 @@
 package types
 
 import (
+	"reflect"
 	"testing"
 
+	gormreflection "github.com/universe-10th/echo-resources/gorm/types/reflection"
 	resourcetypes "github.com/universe-10th/echo-resources/types"
 )
 
 type filterProduct struct {
 	Resource[int]
 	Name  string  `gorm:"column:product_name" json:"name"`
+	Body  string  `gorm:"type:text" json:"body"`
 	Price int     `json:"price"`
 	Note  *string `json:"note,omitempty"`
 }
@@ -16,7 +19,15 @@ type filterProduct struct {
 func TestFilterValidatorUsesModelFields(t *testing.T) {
 	t.Parallel()
 
-	validator := NewFilterValidator(filterProduct{})
+	mapping := gormreflection.NewFieldsMapping[int, filterProduct]()
+	validator := NewFilterValidator(mapping)
+
+	if mapping.ResourceType() != reflect.TypeOf(filterProduct{}) {
+		t.Fatal("expected mapping to expose resource type")
+	}
+	if mapping.IDType() != reflect.TypeOf(int(0)) {
+		t.Fatal("expected mapping to expose ID type")
+	}
 
 	if !validator.IsValidCmpFilter("price", float64(10)) {
 		t.Fatal("expected integral JSON number to be valid for int field")
@@ -39,12 +50,15 @@ func TestFilterValidatorUsesModelFields(t *testing.T) {
 	if !validator.IsSortable("created_at") {
 		t.Fatal("expected embedded timestamp field to be sortable")
 	}
+	if validator.IsSortable("body") {
+		t.Fatal("expected text storage field to not be sortable")
+	}
 }
 
 func TestFilterSerializerProducesSQLPredicate(t *testing.T) {
 	t.Parallel()
 
-	serializer := NewFilterSerializer(filterProduct{})
+	serializer := NewFilterSerializer(gormreflection.NewFieldsMapping[int, filterProduct]())
 
 	got := serializer.Serialize(resourcetypes.FilterExpression{
 		Operator: resourcetypes.FilterAnd,
