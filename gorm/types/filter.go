@@ -84,16 +84,6 @@ func (v FilterValidator) IsContainsCheckable(filter string) bool {
 	return dereferenceType(field.Type).Kind() == reflect.String
 }
 
-// IsSortable reports whether filter can be used in SQL ORDER BY expressions.
-func (v FilterValidator) IsSortable(filter string) bool {
-	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
-	if !ok {
-		return false
-	}
-
-	return isScalar(field.Type) && !hasUnsortableGORMType(field)
-}
-
 // FilterSerializer serializes parsed filters into GORM SQL predicate strings.
 type FilterSerializer struct {
 	mapping *resourcereflection.FieldsMapping
@@ -228,26 +218,6 @@ func isNullable(valueType reflect.Type) bool {
 	}
 }
 
-func isScalar(valueType reflect.Type) bool {
-	valueType = dereferenceType(valueType)
-	if valueType == nil {
-		return false
-	}
-	if valueType == reflect.TypeOf(time.Time{}) || valueType == reflect.TypeOf(uuid.UUID{}) || valueType == reflect.TypeOf(gorm.DeletedAt{}) {
-		return true
-	}
-
-	switch valueType.Kind() {
-	case reflect.String, reflect.Bool,
-		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		reflect.Float32, reflect.Float64:
-		return true
-	default:
-		return false
-	}
-}
-
 func dereferenceType(valueType reflect.Type) reflect.Type {
 	for valueType != nil && valueType.Kind() == reflect.Pointer {
 		valueType = valueType.Elem()
@@ -311,39 +281,6 @@ func escapeLike(value string) string {
 	value = strings.ReplaceAll(value, `%`, `\%`)
 	value = strings.ReplaceAll(value, `_`, `\_`)
 	return value
-}
-
-func hasUnsortableGORMType(field reflect.StructField) bool {
-	tag := parseGORMTag(field.Tag.Get("gorm"))
-	storageType := strings.ToLower(tag["type"])
-
-	switch storageType {
-	case "text", "tinytext", "mediumtext", "longtext",
-		"blob", "tinyblob", "mediumblob", "longblob",
-		"json", "jsonb":
-		return true
-	default:
-		return false
-	}
-}
-
-func parseGORMTag(tag string) map[string]string {
-	values := map[string]string{}
-	for _, part := range strings.Split(tag, ";") {
-		if part == "" {
-			continue
-		}
-
-		key, value, ok := strings.Cut(part, ":")
-		if !ok {
-			values[strings.ToLower(part)] = ""
-			continue
-		}
-
-		values[strings.ToLower(key)] = value
-	}
-
-	return values
 }
 
 var (

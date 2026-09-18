@@ -81,16 +81,6 @@ func (v FilterValidator) IsContainsCheckable(filter string) bool {
 	return dereferenceType(field.Type).Kind() == reflect.String
 }
 
-// IsSortable reports whether filter can be used in MongoDB sort expressions.
-func (v FilterValidator) IsSortable(filter string) bool {
-	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
-	if !ok {
-		return false
-	}
-
-	return isScalar(field.Type)
-}
-
 // FilterSerializer serializes parsed filters into MongoDB BSON filters.
 type FilterSerializer struct {
 	mapping *resourcereflection.FieldsMapping
@@ -210,26 +200,6 @@ func isNullable(valueType reflect.Type) bool {
 
 	switch valueType.Kind() {
 	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice:
-		return true
-	default:
-		return false
-	}
-}
-
-func isScalar(valueType reflect.Type) bool {
-	valueType = dereferenceType(valueType)
-	if valueType == nil {
-		return false
-	}
-	if valueType == reflect.TypeOf(time.Time{}) || valueType == reflect.TypeOf(bson.ObjectID{}) {
-		return true
-	}
-
-	switch valueType.Kind() {
-	case reflect.String, reflect.Bool,
-		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		reflect.Float32, reflect.Float64:
 		return true
 	default:
 		return false
