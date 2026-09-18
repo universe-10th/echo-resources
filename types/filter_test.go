@@ -12,6 +12,7 @@ type filterTestValidator struct {
 	nullFields      map[string]bool
 	existenceFields map[string]bool
 	containsFields  map[string]bool
+	sortableFields  map[string]bool
 }
 
 func (v filterTestValidator) IsValidCmpFilter(filter string, value any) bool {
@@ -28,6 +29,10 @@ func (v filterTestValidator) IsExistenceCheckable(filter string) bool {
 
 func (v filterTestValidator) IsContainsCheckable(field string) bool {
 	return v.containsFields[field]
+}
+
+func (v filterTestValidator) IsSortable(field string) bool {
+	return v.sortableFields[field]
 }
 
 func TestFilterParserParsesComparisonFilter(t *testing.T) {
@@ -202,6 +207,9 @@ func defaultFilterTestValidator() filterTestValidator {
 		},
 		containsFields: map[string]bool{
 			"name": true,
+		},
+		sortableFields: map[string]bool{
+			"age": true,
 		},
 	}
 }
