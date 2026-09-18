@@ -1,5 +1,12 @@
 package types
 
+import (
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+)
+
 // OrderType describes how a list result should be sorted.
 type OrderType uint8
 
@@ -32,7 +39,68 @@ type SortExpression struct {
 	Sort []Sort
 }
 
-// SortParser parses and validates serialized JSON sort specifications.
+// SortParser parses and validates sort specifications.
 type SortParser struct {
 	validator SortValidator
 }
+
+// NewSortParser returns a parser that validates field ordering with validator.
+func NewSortParser(validator SortValidator) SortParser {
+	return SortParser{validator: validator}
+}
+
+// Parse parses a comma-separated sort specification.
+//
+// Fields sort ascending by default. A leading "-" sorts the field descending.
+// For example, "foo,bar,-baz" parses as foo ASC, bar ASC, baz DESC.
+func (p SortParser) Parse(sentence string) (SortExpression, error) {
+	if p.validator == nil {
+		return SortExpression{}, errors.New("sort validator is nil")
+	}
+
+	if sentence == "" {
+		return SortExpression{Sort: []Sort{}}, nil
+	}
+
+	fields := strings.Split(sentence, ",")
+	sort := make([]Sort, 0, len(fields))
+	for index, rawField := range fields {
+		field, orderType, err := parseSortField(rawField)
+		if err != nil {
+			return SortExpression{}, fmt.Errorf("sort field %d: %w", index, err)
+		}
+
+		if !p.validator.IsSortable(field, orderType) {
+			return SortExpression{}, fmt.Errorf("sort field %q is not allowed", field)
+		}
+
+		sort = append(sort, Sort{Field: field, Order: orderType})
+	}
+
+	return SortExpression{Sort: sort}, nil
+}
+
+func parseSortField(rawField string) (string, OrderType, error) {
+	if rawField == "" {
+		return "", Asc, errors.New("field is empty")
+	}
+
+	orderType := Asc
+	field := rawField
+	if strings.HasPrefix(rawField, "-") {
+		orderType = Desc
+		field = strings.TrimPrefix(rawField, "-")
+	}
+
+	if !isValidSortField(field) {
+		return "", Asc, fmt.Errorf("invalid field %q", field)
+	}
+
+	return field, orderType, nil
+}
+
+func isValidSortField(field string) bool {
+	return sortFieldPattern.MatchString(field)
+}
+
+var sortFieldPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_]*$`)
