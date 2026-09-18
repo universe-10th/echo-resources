@@ -1,28 +1,24 @@
-package presets
+package singleton
 
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/universe-10th/echo-resources/types"
 )
 
-// ReadOnlyResourceService stands for a collection resource which is:
+// ReadOnlyResourceService stands for an element resource which is:
 // - Read-Only
 // - Not able to track deleted objects
-// Implements: WithGet, WithList
+// Implements: WithGet
 type ReadOnlyResourceService[IDT comparable, RT types.Resource[IDT]] struct{}
-
-func (readOnlyResourceService *ReadOnlyResourceService[IDT, RT]) List(context echo.Context) error {
-	return nil
-}
 
 func (readOnlyResourceService *ReadOnlyResourceService[IDT, RT]) Get(context echo.Context) error {
 	return nil
 }
 
-// ResourceService stands for a collection resource which is:
+// ResourceService stands for an element resource which is:
 // - Read-Write
 // - Not able to track deleted objects.
-// Implements: WithGet, WithList, WithCreate, WithUpdate, WithDelete
+// Implements: WithGet, WithCreate, WithUpdate, WithDelete
 type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	ReadOnlyResourceService[IDT, RT]
 }
@@ -42,13 +38,9 @@ func (resourceService *ResourceService[IDT, RT]) Delete(context echo.Context) er
 // ReadOnlySoftDeletedResourceService stands for a collection resource which is:
 // - Read-Write
 // - Able to track deleted objects
-// Implements: WithGet, WithList, WithSoftDeletedGet, WithSoftDeletedList
+// Implements: WithGet, WithSoftDeletedGet
 type ReadOnlySoftDeletedResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	ReadOnlyResourceService[IDT, RT]
-}
-
-func (readOnlySoftDeletedResourceService *ReadOnlySoftDeletedResourceService[IDT, RT]) ListDeleted(context echo.Context) error {
-	return nil
 }
 
 func (readOnlySoftDeletedResourceService *ReadOnlySoftDeletedResourceService[IDT, RT]) GetDeleted(context echo.Context) error {
@@ -58,9 +50,9 @@ func (readOnlySoftDeletedResourceService *ReadOnlySoftDeletedResourceService[IDT
 // SoftDeletedResourceService stands for a collection resource which is:
 // - Read-Write
 // - Able to track deleted objects
-// Implements: WithGet, WithList, WithCreate, WithUpdate, WithDelete,
+// Implements: WithGet, WithCreate, WithUpdate, WithDelete,
 //
-//	WithSoftDeletedGet, WithSoftDeletedList, WithSoftDeletedRestore,
+//	WithSoftDeletedGet, WithSoftDeletedRestore,
 //	WithSoftDeletedPrune
 type SoftDeletedResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	ReadOnlySoftDeletedResourceService[IDT, RT]
