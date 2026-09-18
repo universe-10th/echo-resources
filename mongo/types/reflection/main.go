@@ -3,6 +3,9 @@ package reflection
 import (
 	"reflect"
 	"strings"
+
+	"github.com/universe-10th/echo-resources/types"
+	"github.com/universe-10th/echo-resources/types/reflection"
 )
 
 // FieldToStorage maps exported struct field names to their MongoDB BSON field names.
@@ -66,4 +69,10 @@ func parseBSONTag(tag string) (string, map[string]bool) {
 	}
 
 	return parts[0], options
+}
+
+// NewFieldsMapping creates a FieldsMapping instance from a generic resource
+// type and a custom mapping function (intended for MongoDB).
+func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]]() reflection.FieldsMapping {
+	return reflection.NewFieldsMapping[IDT, RT](FieldToStorage)
 }

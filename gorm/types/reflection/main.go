@@ -4,6 +4,9 @@ import (
 	"reflect"
 	"strings"
 	"unicode"
+
+	"github.com/universe-10th/echo-resources/types"
+	"github.com/universe-10th/echo-resources/types/reflection"
 )
 
 // FieldToStorage maps exported struct field names to their GORM column names.
@@ -97,4 +100,10 @@ func toSnakeCase(value string) string {
 	}
 
 	return builder.String()
+}
+
+// NewFieldsMapping creates a FieldsMapping instance from a generic resource
+// type and a custom mapping function (intended for GORM).
+func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]]() reflection.FieldsMapping {
+	return reflection.NewFieldsMapping[IDT, RT](FieldToStorage)
 }
