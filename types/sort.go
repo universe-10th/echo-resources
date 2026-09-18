@@ -7,6 +7,35 @@ import (
 	"strings"
 )
 
+// The SortSerializer interface has a method to serialize a parsed sort expression
+// into an engine-specific list. The Query type is either a bson.D (for MongoDB engine)
+// or string (for GORM engine), and new engines might use their own types.
+type SortSerializer[Query any] interface {
+	// Serialize produces query values to be used in the underlying database engine.
+	Serialize(sort SortExpression) Query
+}
+
+// The SortValidator has methods to test whether a sort can be done for
+// a specific field. As of today, this sort only includes Asc and Desc.
+type SortValidator interface {
+	// IsSortable takes the name of a field and tells whether it is valid (for the
+	// current sorting) and it can be sorted. For SQL databases, most of the fields are
+	// sortable (numbers, strings, dates, incremental IDs). For MongoDB databases, most
+	// of the fields are sortable (compound fields are not).
+	IsSortable(field string, orderType OrderType) bool
+}
+
+// The SortSource interface is an object that produces a valid instance of SortSerializer
+// and SortValidator in the same place. Engines should provide tools to spawn both of them,
+// accounting for appropriate field names mapping.
+type SortSource[Query any] interface {
+	// Serializer spawns a sort serializer of the appropriate type.
+	Serializer() FilterSerializer[Query]
+
+	// Validator spawns a sort validator of the appropriate type.
+	Validator() FilterValidator
+}
+
 // OrderType describes how a list result should be sorted.
 type OrderType uint8
 
@@ -22,16 +51,6 @@ const (
 type Sort struct {
 	Field string
 	Order OrderType
-}
-
-// The SortValidator has methods to test whether a sort can be done for
-// a specific field. As of today, this sort only includes Asc and Desc.
-type SortValidator interface {
-	// IsSortable takes the name of a field and tells whether it is valid (for the
-	// current sorting) and it can be sorted. For SQL databases, most of the fields are
-	// sortable (numbers, strings, dates, incremental IDs). For MongoDB databases, most
-	// of the fields are sortable (compound fields are not).
-	IsSortable(field string, orderType OrderType) bool
 }
 
 // SortExpression is the database-neutral DSL produced by SortParser.
