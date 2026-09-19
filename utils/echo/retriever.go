@@ -35,6 +35,20 @@ type CollectionSoftDeletedListRetrieverFunc[IDT comparable, RT types.SoftDeleted
 	context echo.Context, retriever types.CollectionSoftDeletedList[IDT, RT],
 ) ([]RT, int64, int64, error)
 
+// A SingletonElementRetrieverFunc is a function that retrieves an item or
+// returns an error. When an error occurs, the error will be returned to
+// the caller, and the caller MUST stop.
+type SingletonElementRetrieverFunc[IDT comparable, RT types.Resource[IDT]] func(
+	context echo.Context, retriever types.SingletonGet[IDT, RT],
+) (RT, error)
+
+// A SingletonSoftDeletedElementRetrieverFunc is a function that retrieves an item
+// or returns an error. When an error occurs, the error will be returned to the caller,
+// and the caller MUST stop. This works on DELETED items.
+type SingletonSoftDeletedElementRetrieverFunc[IDT comparable, RT types.SoftDeletedResource[IDT]] func(
+	context echo.Context, retriever types.SingletonSoftDeletedGet[IDT, RT],
+) (RT, error)
+
 // A ScopeEnhancer is a function that modifies the current sort files and filter.
 type ScopeEnhancer func(
 	context echo.Context, filter *types.FilterExpression, sort *types.SortExpression,
@@ -268,5 +282,102 @@ func MakeCollectionSoftDeletedListRetriever[IDT comparable, RT types.SoftDeleted
 			}
 		}
 		return result, page.Skip, count, err
+	}
+}
+
+// MakeSingletonElementRetriever creates a collection retriever function.
+// This function uses a specific retriever logic.
+func MakeSingletonElementRetriever[IDT comparable, RT types.Resource[IDT]](
+	filterValidator types.FilterValidator,
+	enhancer ScopeEnhancer,
+	elementName string,
+) SingletonElementRetrieverFunc[IDT, RT] {
+	return func(context echo.Context, retriever types.SingletonGet[IDT, RT]) (RT, error) {
+		var result RT
+		var found bool
+		var err error
+
+		// Parse the filter, if present.
+		var filter types.FilterExpression
+		filter, err = ParseFilter(context, filterValidator)
+		if err != nil {
+			return result, err
+		}
+
+		// Enhance the filter.
+		if enhancer != nil {
+			err = enhancer(context, &filter, nil)
+		}
+		if err != nil {
+			return result, err
+		}
+
+		result, found, err = retriever.Get(filter)
+
+		if !found {
+			err = types.NotFoundError[IDT]{
+				ElementName: elementName,
+			}
+		}
+
+		if err != nil {
+			var err_ types.Error
+			if errors.As(err, &err_) {
+				serializedErr, code := types.RenderError(err_)
+				_ = context.JSON(int(code), serializedErr)
+			}
+		}
+		return result, err
+	}
+}
+
+// MakeSingletonSoftDeletedElementRetriever creates a collection retriever function.
+// This function uses a specific retriever logic based on ID lookup. This works on
+// DELETED items.
+func MakeSingletonSoftDeletedElementRetriever[IDT comparable, RT types.SoftDeletedResource[IDT]](
+	filterValidator types.FilterValidator,
+	enhancer ScopeEnhancer,
+	urlArg string, elementName string,
+) SingletonSoftDeletedElementRetrieverFunc[IDT, RT] {
+	return func(context echo.Context, retriever types.SingletonSoftDeletedGet[IDT, RT]) (RT, error) {
+		var result RT
+		var found bool
+		var err error
+
+		// Parse the filter, if present.
+		var filter types.FilterExpression
+		filter, err = ParseFilter(context, filterValidator)
+		if err != nil {
+			return result, err
+		}
+
+		// Enhance the filter.
+		if enhancer != nil {
+			err = enhancer(context, &filter, nil)
+		}
+		if err != nil {
+			return result, err
+		}
+
+		id, err := echo.PathParam[IDT](context, urlArg)
+		if err == nil {
+			result, found, err = retriever.GetDeleted(filter)
+		}
+
+		if !found {
+			err = types.NotFoundError[IDT]{
+				ElementName: elementName,
+				Key:         id,
+			}
+		}
+
+		if err != nil {
+			var err_ types.Error
+			if errors.As(err, &err_) {
+				serializedErr, code := types.RenderError(err_)
+				_ = context.JSON(int(code), serializedErr)
+			}
+		}
+		return result, err
 	}
 }

@@ -10,8 +10,8 @@ type SingletonGet[IDT comparable, RT Resource[IDT]] interface {
 	Get(filter FilterExpression) (element RT, found bool, err error)
 }
 
-// The SingletonDeletedGet interface supports a method to retrieve the deleted singleton element.
-type SingletonDeletedGet[IDT comparable, RT SoftDeletedResource[IDT]] interface {
+// The SingletonSoftDeletedGet interface supports a method to retrieve the deleted singleton element.
+type SingletonSoftDeletedGet[IDT comparable, RT SoftDeletedResource[IDT]] interface {
 	// GetDeleted retrieves the DELETED singleton element, or found=false if it
 	// does not exist or is not deleted.
 	//
