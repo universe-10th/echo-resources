@@ -35,9 +35,16 @@ type CollectionSoftDeletedListRetrieverFunc[IDT comparable, RT types.SoftDeleted
 	context echo.Context, retriever types.CollectionSoftDeletedList[IDT, RT],
 ) ([]RT, int64, int64, error)
 
+// A ScopeEnhancer is a function that modifies the current sort files and filter.
+type ScopeEnhancer func(
+	context echo.Context, filter *types.FilterExpression, sort *types.SortExpression,
+) error
+
 // MakeCollectionElementRetriever creates a collection retriever function.
 // This function uses a specific retriever logic based on ID lookup.
 func MakeCollectionElementRetriever[IDT comparable, RT types.Resource[IDT]](
+	filterValidator types.FilterValidator,
+	enhancer ScopeEnhancer,
 	urlArg string, elementName string,
 ) CollectionElementRetrieverFunc[IDT, RT] {
 	return func(context echo.Context, retriever types.CollectionList[IDT, RT]) (RT, error) {
@@ -45,9 +52,24 @@ func MakeCollectionElementRetriever[IDT comparable, RT types.Resource[IDT]](
 		var found bool
 		var err error
 
+		// Parse the filter, if present.
+		var filter types.FilterExpression
+		filter, err = ParseFilter(context, filterValidator)
+		if err != nil {
+			return result, err
+		}
+
+		// Enhance the filter.
+		if enhancer != nil {
+			err = enhancer(context, &filter, nil)
+		}
+		if err != nil {
+			return result, err
+		}
+
 		id, err := echo.PathParam[IDT](context, urlArg)
 		if err == nil {
-			result, found, err = retriever.Get(id)
+			result, found, err = retriever.Get(id, filter)
 		}
 
 		if !found {
@@ -73,6 +95,7 @@ func MakeCollectionElementRetriever[IDT comparable, RT types.Resource[IDT]](
 // for sort and a validator for filter.
 func MakeCollectionListRetriever[IDT comparable, RT types.Resource[IDT]](
 	filterValidator types.FilterValidator, sortValidator types.SortValidator,
+	enhancer ScopeEnhancer,
 ) CollectionListRetrieverFunc[IDT, RT] {
 	return func(
 		context echo.Context, retriever types.CollectionList[IDT, RT],
@@ -95,6 +118,14 @@ func MakeCollectionListRetriever[IDT comparable, RT types.Resource[IDT]](
 		// Parse the filter, if present.
 		var filter types.FilterExpression
 		filter, err = ParseFilter(context, filterValidator)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+
+		// Enhance the filter.
+		if enhancer != nil {
+			err = enhancer(context, &filter, &sort)
+		}
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -128,6 +159,8 @@ func MakeCollectionListRetriever[IDT comparable, RT types.Resource[IDT]](
 // This function uses a specific retriever logic based on ID lookup. This works on
 // DELETED items.
 func MakeCollectionSoftDeletedElementRetriever[IDT comparable, RT types.SoftDeletedResource[IDT]](
+	filterValidator types.FilterValidator,
+	enhancer ScopeEnhancer,
 	urlArg string, elementName string,
 ) CollectionSoftDeletedElementRetrieverFunc[IDT, RT] {
 	return func(context echo.Context, retriever types.CollectionSoftDeletedList[IDT, RT]) (RT, error) {
@@ -135,9 +168,24 @@ func MakeCollectionSoftDeletedElementRetriever[IDT comparable, RT types.SoftDele
 		var found bool
 		var err error
 
+		// Parse the filter, if present.
+		var filter types.FilterExpression
+		filter, err = ParseFilter(context, filterValidator)
+		if err != nil {
+			return result, err
+		}
+
+		// Enhance the filter.
+		if enhancer != nil {
+			err = enhancer(context, &filter, nil)
+		}
+		if err != nil {
+			return result, err
+		}
+
 		id, err := echo.PathParam[IDT](context, urlArg)
 		if err == nil {
-			result, found, err = retriever.GetDeleted(id)
+			result, found, err = retriever.GetDeleted(id, filter)
 		}
 
 		if !found {
@@ -163,6 +211,7 @@ func MakeCollectionSoftDeletedElementRetriever[IDT comparable, RT types.SoftDele
 // a validator for filter. This works on DELETED items.
 func MakeCollectionSoftDeletedListRetriever[IDT comparable, RT types.SoftDeletedResource[IDT]](
 	filterValidator types.FilterValidator, sortValidator types.SortValidator,
+	enhancer ScopeEnhancer,
 ) CollectionSoftDeletedListRetrieverFunc[IDT, RT] {
 	return func(
 		context echo.Context, retriever types.CollectionSoftDeletedList[IDT, RT],
@@ -185,6 +234,14 @@ func MakeCollectionSoftDeletedListRetriever[IDT comparable, RT types.SoftDeleted
 		// Parse the filter, if present.
 		var filter types.FilterExpression
 		filter, err = ParseFilter(context, filterValidator)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+
+		// Enhance the filter.
+		if enhancer != nil {
+			err = enhancer(context, &filter, &sort)
+		}
 		if err != nil {
 			return nil, 0, 0, err
 		}
