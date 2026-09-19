@@ -19,7 +19,7 @@ type CollectionElementRetrieverFunc[IDT comparable, RT types.Resource[IDT]] func
 // the caller, and the caller MUST stop.
 type CollectionListRetrieverFunc[IDT comparable, RT types.Resource[IDT]] func(
 	context echo.Context, retriever types.CollectionList[IDT, RT],
-) ([]RT, error)
+) ([]RT, int64, int64, error)
 
 // MakeCollectionElementRetriever creates a collection retriever function.
 // This function uses a specific retriever logic
@@ -62,36 +62,42 @@ func MakeCollectionListRetriever[IDT comparable, RT types.Resource[IDT]](
 ) CollectionListRetrieverFunc[IDT, RT] {
 	return func(
 		context echo.Context, retriever types.CollectionList[IDT, RT],
-	) ([]RT, error) {
+	) ([]RT, int64, int64, error) {
 		var result []RT
+		var count int64
 		var err error
 		var page struct {
-			Skip  int
-			Limit int
+			Skip  int64
+			Limit int64
 		}
 
 		// Parse the sort, if present.
 		var sort types.SortExpression
 		sort, err = ParseSort(context, sortValidator)
 		if err != nil {
-			return nil, err
+			return nil, 0, 0, err
 		}
 
 		// Parse the filter, if present.
 		var filter types.FilterExpression
 		filter, err = ParseFilter(context, filterValidator)
 		if err != nil {
-			return nil, err
+			return nil, 0, 0, err
 		}
 
-		if err == nil {
-			result, err = retriever.List(types.ListOptions{
-				Skip:   page.Skip,
-				Limit:  page.Limit,
-				Sort:   sort,
-				Filter: filter,
-			})
+		// Compute the count of total elements.
+		count, err = retriever.Count(filter)
+		if err != nil {
+			return nil, 0, 0, err
 		}
+
+		// Compute the page of elements.
+		result, err = retriever.List(types.ListOptions{
+			Skip:   page.Skip,
+			Limit:  page.Limit,
+			Sort:   sort,
+			Filter: filter,
+		})
 
 		if err != nil {
 			var err_ types.Error
@@ -100,6 +106,6 @@ func MakeCollectionListRetriever[IDT comparable, RT types.Resource[IDT]](
 				_ = context.JSON(int(code), serializedErr)
 			}
 		}
-		return result, err
+		return result, page.Skip, count, err
 	}
 }
