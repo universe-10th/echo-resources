@@ -28,3 +28,45 @@ func TestSortValidatorUsesModelFields(t *testing.T) {
 		t.Fatal("expected unknown order type to not be sortable")
 	}
 }
+
+func TestSortSerializerProducesSQLOrderFragment(t *testing.T) {
+	t.Parallel()
+
+	serializer := NewSortSerializer(gormreflection.NewFieldsMapping[int, filterProduct]())
+
+	got := serializer.Serialize(resourcetypes.SortExpression{
+		Sort: []resourcetypes.Sort{
+			{Field: "name", Order: resourcetypes.Asc},
+			{Field: "price", Order: resourcetypes.Desc},
+		},
+	})
+	want := `"product_name" ASC, "price" DESC`
+
+	if got != want {
+		t.Fatalf("unexpected SQL order fragment\nwant: %s\n got: %s", want, got)
+	}
+}
+
+func TestSortSerializerReturnsEmptySQLOrderFragmentForInvalidSort(t *testing.T) {
+	t.Parallel()
+
+	serializer := NewSortSerializer(gormreflection.NewFieldsMapping[int, filterProduct]())
+
+	got := serializer.Serialize(resourcetypes.SortExpression{
+		Sort: []resourcetypes.Sort{
+			{Field: "unknown", Order: resourcetypes.Asc},
+		},
+	})
+	if got != "" {
+		t.Fatalf("expected empty SQL order fragment, got %q", got)
+	}
+
+	got = serializer.Serialize(resourcetypes.SortExpression{
+		Sort: []resourcetypes.Sort{
+			{Field: "price", Order: resourcetypes.OrderType(99)},
+		},
+	})
+	if got != "" {
+		t.Fatalf("expected empty SQL order fragment, got %q", got)
+	}
+}

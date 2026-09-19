@@ -11,6 +11,40 @@ import (
 	"gorm.io/gorm"
 )
 
+// SortSerializer serializes parsed sorts into GORM SQL order fragments.
+type SortSerializer struct {
+	mapping *resourcereflection.FieldsMapping
+}
+
+// NewSortSerializer returns a serializer for the supplied GORM field mapping.
+func NewSortSerializer(mapping *resourcereflection.FieldsMapping) SortSerializer {
+	return SortSerializer{mapping: mapping}
+}
+
+// Serialize serializes sort into a SQL order fragment.
+func (s SortSerializer) Serialize(sort resourcetypes.SortExpression) string {
+	if len(sort.Sort) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(sort.Sort))
+	for _, item := range sort.Sort {
+		storageName := resourcereflection.StorageForJSON(s.mapping, item.Field)
+		if storageName == "" {
+			return ""
+		}
+
+		direction := sqlSortDirection(item.Order)
+		if direction == "" {
+			return ""
+		}
+
+		parts = append(parts, quoteIdentifier(storageName)+" "+direction)
+	}
+
+	return strings.Join(parts, ", ")
+}
+
 // SortValidator validates sort fields against a GORM field mapping.
 type SortValidator struct {
 	mapping *resourcereflection.FieldsMapping
@@ -41,6 +75,17 @@ func isValidOrderType(orderType resourcetypes.OrderType) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func sqlSortDirection(orderType resourcetypes.OrderType) string {
+	switch orderType {
+	case resourcetypes.Asc:
+		return "ASC"
+	case resourcetypes.Desc:
+		return "DESC"
+	default:
+		return ""
 	}
 }
 
@@ -97,4 +142,7 @@ func parseGORMTag(tag string) map[string]string {
 	return values
 }
 
-var _ resourcetypes.SortValidator = SortValidator{}
+var (
+	_ resourcetypes.SortSerializer[string] = SortSerializer{}
+	_ resourcetypes.SortValidator          = SortValidator{}
+)

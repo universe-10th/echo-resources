@@ -9,6 +9,40 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+// SortSerializer serializes parsed sorts into MongoDB BSON sort specifications.
+type SortSerializer struct {
+	mapping *resourcereflection.FieldsMapping
+}
+
+// NewSortSerializer returns a serializer for the supplied MongoDB field mapping.
+func NewSortSerializer(mapping *resourcereflection.FieldsMapping) SortSerializer {
+	return SortSerializer{mapping: mapping}
+}
+
+// Serialize serializes sort into a BSON sort specification.
+func (s SortSerializer) Serialize(sort resourcetypes.SortExpression) bson.D {
+	if len(sort.Sort) == 0 {
+		return bson.D{}
+	}
+
+	result := make(bson.D, 0, len(sort.Sort))
+	for _, item := range sort.Sort {
+		storageName := resourcereflection.StorageForJSON(s.mapping, item.Field)
+		if storageName == "" {
+			return bson.D{}
+		}
+
+		direction := mongoSortDirection(item.Order)
+		if direction == 0 {
+			return bson.D{}
+		}
+
+		result = append(result, bson.E{Key: storageName, Value: direction})
+	}
+
+	return result
+}
+
 // SortValidator validates sort fields against a MongoDB field mapping.
 type SortValidator struct {
 	mapping *resourcereflection.FieldsMapping
@@ -42,6 +76,17 @@ func isValidOrderType(orderType resourcetypes.OrderType) bool {
 	}
 }
 
+func mongoSortDirection(orderType resourcetypes.OrderType) int {
+	switch orderType {
+	case resourcetypes.Asc:
+		return 1
+	case resourcetypes.Desc:
+		return -1
+	default:
+		return 0
+	}
+}
+
 func isScalar(valueType reflect.Type) bool {
 	valueType = dereferenceType(valueType)
 	if valueType == nil {
@@ -62,4 +107,7 @@ func isScalar(valueType reflect.Type) bool {
 	}
 }
 
-var _ resourcetypes.SortValidator = SortValidator{}
+var (
+	_ resourcetypes.SortSerializer[bson.D] = SortSerializer{}
+	_ resourcetypes.SortValidator          = SortValidator{}
+)
