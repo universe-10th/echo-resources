@@ -13,32 +13,43 @@ import (
 // - Not able to track deleted objects
 // Implements: WithGet, WithList
 type ReadOnlyResourceService[IDT comparable, RT types.Resource[IDT]] struct {
-	listEngine         types.CollectionList[IDT, RT]
-	collectionRenderer echo2.ListRenderer
-	elementRenderer    echo2.ElementRenderer
-	listRetriever      echo2.CollectionListRetrieverFunc[IDT, RT]
-	elementRetriever   echo2.CollectionElementRetrieverFunc[IDT, RT]
+	// The underlying live-objects list engine.
+	listEngine types.CollectionList[IDT, RT]
+
+	// Retrievers for live objects.
+	listRetriever    echo2.CollectionListRetrieverFunc[IDT, RT]
+	elementRetriever echo2.CollectionElementRetrieverFunc[IDT, RT]
+
+	// Renderers of retrieved live objects.
+	listRenderer    echo2.ListRenderer
+	elementRenderer echo2.ElementRenderer
 }
 
-// List renders all the elements being queried.
+// List retrieves and renders all the elements being queried.
 func (readOnlyResourceService *ReadOnlyResourceService[IDT, RT]) List(context echo.Context) error {
 	elements, skip, total, err := readOnlyResourceService.listRetriever(context, readOnlyResourceService.listEngine)
 	if err != nil {
 		return err
 	}
 
-	return readOnlyResourceService.RenderCollection(context, http.StatusOK, elements, skip, total)
+	return readOnlyResourceService.RenderList(context, http.StatusOK, elements, skip, total)
 }
 
+// Get retrieves and renders the element being queried.
 func (readOnlyResourceService *ReadOnlyResourceService[IDT, RT]) Get(context echo.Context) error {
-	return nil
+	element, err := readOnlyResourceService.elementRetriever(context, readOnlyResourceService.listEngine)
+	if err != nil {
+		return err
+	}
+
+	return readOnlyResourceService.RenderElement(context, http.StatusOK, element)
 }
 
-// RenderCollection renders a page of elements in the context of a request.
-func (readOnlyResourceService *ReadOnlyResourceService[IDT, RT]) RenderCollection(
+// RenderList renders a page of elements in the context of a request.
+func (readOnlyResourceService *ReadOnlyResourceService[IDT, RT]) RenderList(
 	context echo.Context, code int, objs []RT, skip int64, total int64,
 ) error {
-	return readOnlyResourceService.collectionRenderer(context, code, objs, skip, total)
+	return readOnlyResourceService.listRenderer(context, code, objs, skip, total)
 }
 
 // RenderElement renders a single element in the context of a request.
@@ -72,28 +83,52 @@ func (resourceService *ResourceService[IDT, RT]) Delete(context echo.Context) er
 // - Read-Write
 // - Able to track deleted objects
 // Implements: WithGet, WithList, WithSoftDeletedGet, WithSoftDeletedList
-type ReadOnlySoftDeletedResourceService[IDT comparable, RT types.Resource[IDT]] struct {
+type ReadOnlySoftDeletedResourceService[IDT comparable, RT types.SoftDeletedResource[IDT]] struct {
 	ReadOnlyResourceService[IDT, RT]
-	deletedCollectionRenderer echo2.ListRenderer
-	deletedElementRenderer    echo2.ElementRenderer
+
+	// The underlying dead-objects list engine.
+	deletedListEngine types.CollectionSoftDeletedList[IDT, RT]
+
+	// Retrievers for dead objects.
+	deletedListRetriever    echo2.CollectionSoftDeletedListRetrieverFunc[IDT, RT]
+	deletedElementRetriever echo2.CollectionSoftDeletedElementRetrieverFunc[IDT, RT]
+
+	// Renderers of retrieved dead objects. If absent,
+	// the live listRenderer / elementRenderer will be
+	// used, respectively.
+	deletedListRenderer    echo2.ListRenderer
+	deletedElementRenderer echo2.ElementRenderer
 }
 
+// ListDeleted retrieves and renders all the deleted elements being queried.
 func (readOnlySoftDeletedResourceService *ReadOnlySoftDeletedResourceService[IDT, RT]) ListDeleted(context echo.Context) error {
-	return nil
+	elements, skip, total, err := readOnlySoftDeletedResourceService.deletedListRetriever(context, readOnlySoftDeletedResourceService.deletedListEngine)
+	if err != nil {
+		return err
+	}
+
+	return readOnlySoftDeletedResourceService.RenderDeletedList(context, http.StatusOK, elements, skip, total)
+
 }
 
+// GetDeleted retrieves and renders the element being queried.
 func (readOnlySoftDeletedResourceService *ReadOnlySoftDeletedResourceService[IDT, RT]) GetDeleted(context echo.Context) error {
-	return nil
+	element, err := readOnlySoftDeletedResourceService.deletedElementRetriever(context, readOnlySoftDeletedResourceService.deletedListEngine)
+	if err != nil {
+		return err
+	}
+
+	return readOnlySoftDeletedResourceService.RenderDeletedElement(context, http.StatusOK, element)
 }
 
-// RenderDeletedCollection renders a page of elements in the context of a request.
-func (readOnlySoftDeletedResourceService *ReadOnlySoftDeletedResourceService[IDT, RT]) RenderDeletedCollection(
+// RenderDeletedList renders a page of elements in the context of a request.
+func (readOnlySoftDeletedResourceService *ReadOnlySoftDeletedResourceService[IDT, RT]) RenderDeletedList(
 	context echo.Context, code int, objs []RT, skip int64, total int64,
 ) error {
-	if readOnlySoftDeletedResourceService.deletedCollectionRenderer != nil {
-		return readOnlySoftDeletedResourceService.deletedCollectionRenderer(context, code, objs, skip, total)
+	if readOnlySoftDeletedResourceService.deletedListRenderer != nil {
+		return readOnlySoftDeletedResourceService.deletedListRenderer(context, code, objs, skip, total)
 	}
-	return readOnlySoftDeletedResourceService.collectionRenderer(context, code, objs, skip, total)
+	return readOnlySoftDeletedResourceService.listRenderer(context, code, objs, skip, total)
 }
 
 // RenderDeletedElement renders a single element in the context of a request.
@@ -113,7 +148,7 @@ func (readOnlySoftDeletedResourceService *ReadOnlySoftDeletedResourceService[IDT
 //
 //	WithSoftDeletedGet, WithSoftDeletedList, WithSoftDeletedRestore,
 //	WithSoftDeletedPrune
-type SoftDeletedResourceService[IDT comparable, RT types.Resource[IDT]] struct {
+type SoftDeletedResourceService[IDT comparable, RT types.SoftDeletedResource[IDT]] struct {
 	ReadOnlySoftDeletedResourceService[IDT, RT]
 	ResourceService[IDT, RT]
 }
