@@ -27,6 +27,9 @@ type CollectionList[IDT comparable, RT Resource[IDT]] interface {
 
 	// List retrieves a page of elements.
 	List(options ListOptions) ([]RT, error)
+
+	// Count retrieves the count of elements, only accounting for the filter.
+	Count(options FilterExpression) (int64, error)
 }
 
 // The CollectionSoftDeletedList interface supports method to retrieve a single deleted element,
@@ -38,6 +41,9 @@ type CollectionSoftDeletedList[IDT comparable, RT SoftDeletedResource[IDT]] inte
 
 	// ListDeleted retrieves a page of DELETED elements.
 	ListDeleted(options ListOptions) ([]RT, error)
+
+	// CountDeleted retrieves the count of elements, only accounting for the filter.
+	CountDeleted(options FilterExpression) (int64, error)
 }
 
 // The CollectionDelete interface supports methods to delete a single element or a set of elements.
