@@ -11,6 +11,32 @@ import (
 	"gorm.io/gorm"
 )
 
+// SortSource derives GORM sort validation and serialization from a field mapping.
+type SortSource struct {
+	mapping    *resourcereflection.FieldsMapping
+	serializer SortSerializer
+	validator  SortValidator
+}
+
+// NewSortSource returns a SortSource for the supplied GORM field mapping.
+func NewSortSource(mapping *resourcereflection.FieldsMapping) SortSource {
+	return SortSource{
+		mapping:    mapping,
+		serializer: NewSortSerializer(mapping),
+		validator:  NewSortValidator(mapping),
+	}
+}
+
+// Serializer returns a GORM SQL order serializer.
+func (s SortSource) Serializer() resourcetypes.SortSerializer[string] {
+	return s.serializer
+}
+
+// Validator returns a GORM sort validator.
+func (s SortSource) Validator() resourcetypes.SortValidator {
+	return s.validator
+}
+
 // SortSerializer serializes parsed sorts into GORM SQL order fragments.
 type SortSerializer struct {
 	mapping *resourcereflection.FieldsMapping
@@ -143,6 +169,7 @@ func parseGORMTag(tag string) map[string]string {
 }
 
 var (
+	_ resourcetypes.SortSource[string]     = SortSource{}
 	_ resourcetypes.SortSerializer[string] = SortSerializer{}
 	_ resourcetypes.SortValidator          = SortValidator{}
 )

@@ -9,6 +9,26 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+func TestSortSourceProvidesSerializerAndValidator(t *testing.T) {
+	t.Parallel()
+
+	source := NewSortSource(mongoreflection.NewFieldsMapping[bson.ObjectID, filterProduct]())
+
+	if !source.Validator().IsSortable("price", resourcetypes.Asc) {
+		t.Fatal("expected source validator to allow scalar field")
+	}
+
+	got := source.Serializer().Serialize(resourcetypes.SortExpression{
+		Sort: []resourcetypes.Sort{
+			{Field: "name", Order: resourcetypes.Asc},
+		},
+	})
+	want := bson.D{{Key: "product_name", Value: 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected BSON sort\nwant: %#v\n got: %#v", want, got)
+	}
+}
+
 func TestSortValidatorUsesDocumentFields(t *testing.T) {
 	t.Parallel()
 

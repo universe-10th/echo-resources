@@ -7,6 +7,26 @@ import (
 	resourcetypes "github.com/universe-10th/echo-resources/types"
 )
 
+func TestSortSourceProvidesSerializerAndValidator(t *testing.T) {
+	t.Parallel()
+
+	source := NewSortSource(gormreflection.NewFieldsMapping[int, filterProduct]())
+
+	if !source.Validator().IsSortable("price", resourcetypes.Asc) {
+		t.Fatal("expected source validator to allow scalar field")
+	}
+
+	got := source.Serializer().Serialize(resourcetypes.SortExpression{
+		Sort: []resourcetypes.Sort{
+			{Field: "name", Order: resourcetypes.Asc},
+		},
+	})
+	want := `"product_name" ASC`
+	if got != want {
+		t.Fatalf("unexpected SQL order fragment\nwant: %s\n got: %s", want, got)
+	}
+}
+
 func TestSortValidatorUsesModelFields(t *testing.T) {
 	t.Parallel()
 

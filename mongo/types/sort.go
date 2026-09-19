@@ -9,6 +9,32 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+// SortSource derives MongoDB sort validation and serialization from a field mapping.
+type SortSource struct {
+	mapping    *resourcereflection.FieldsMapping
+	serializer SortSerializer
+	validator  SortValidator
+}
+
+// NewSortSource returns a SortSource for the supplied MongoDB field mapping.
+func NewSortSource(mapping *resourcereflection.FieldsMapping) SortSource {
+	return SortSource{
+		mapping:    mapping,
+		serializer: NewSortSerializer(mapping),
+		validator:  NewSortValidator(mapping),
+	}
+}
+
+// Serializer returns a MongoDB BSON sort serializer.
+func (s SortSource) Serializer() resourcetypes.SortSerializer[bson.D] {
+	return s.serializer
+}
+
+// Validator returns a MongoDB sort validator.
+func (s SortSource) Validator() resourcetypes.SortValidator {
+	return s.validator
+}
+
 // SortSerializer serializes parsed sorts into MongoDB BSON sort specifications.
 type SortSerializer struct {
 	mapping *resourcereflection.FieldsMapping
@@ -108,6 +134,7 @@ func isScalar(valueType reflect.Type) bool {
 }
 
 var (
+	_ resourcetypes.SortSource[bson.D]     = SortSource{}
 	_ resourcetypes.SortSerializer[bson.D] = SortSerializer{}
 	_ resourcetypes.SortValidator          = SortValidator{}
 )

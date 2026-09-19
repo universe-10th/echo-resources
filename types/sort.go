@@ -30,10 +30,10 @@ type SortValidator interface {
 // accounting for appropriate field names mapping.
 type SortSource[Query any] interface {
 	// Serializer spawns a sort serializer of the appropriate type.
-	Serializer() FilterSerializer[Query]
+	Serializer() SortSerializer[Query]
 
 	// Validator spawns a sort validator of the appropriate type.
-	Validator() FilterValidator
+	Validator() SortValidator
 }
 
 // OrderType describes how a list result should be sorted.
