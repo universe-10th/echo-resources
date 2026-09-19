@@ -23,7 +23,7 @@ type CollectionList[IDT comparable, RT Resource[IDT]] interface {
 	// Get retrieves one element by its id, or found=false on non-existing element.
 	// This includes the case of soft-deleted: trying to get a soft-deleted
 	// element will return found=false.
-	Get(id IDT) (element RT, found bool, err error)
+	Get(id IDT, filter FilterExpression) (element RT, found bool, err error)
 
 	// List retrieves a page of elements.
 	List(options ListOptions) ([]RT, error)
@@ -37,7 +37,7 @@ type CollectionList[IDT comparable, RT Resource[IDT]] interface {
 type CollectionSoftDeletedList[IDT comparable, RT SoftDeletedResource[IDT]] interface {
 	// GetDeleted retrieves one DELETED element by its id, or found=false on non-existing
 	// or non-deleted element.
-	GetDeleted(id IDT) (element RT, found bool, err error)
+	GetDeleted(id IDT, filter FilterExpression) (element RT, found bool, err error)
 
 	// ListDeleted retrieves a page of DELETED elements.
 	ListDeleted(options ListOptions) ([]RT, error)
@@ -51,12 +51,12 @@ type CollectionDelete[IDT comparable] interface {
 	// Delete deletes one element by its id.
 	// This includes the case of soft-deleted: trying to delete a soft-deleted
 	// element will return false.
-	Delete(id IDT) (bool, error)
+	Delete(id IDT, filter FilterExpression) (bool, error)
 
 	// DeleteMany deletes many records by their ids, and counts how many elements
 	// were deleted. This includes the case of soft-deleted: elements are marked
 	// as soft-deleted, and soft-deleted elements will not be marked nor counted.
-	DeleteMany(ids []IDT) (int, error)
+	DeleteMany(ids []IDT, filter FilterExpression) (int, error)
 }
 
 // The CollectionSoftDeletedPrune interface supports a method to prune a single deleted element or many
@@ -64,11 +64,11 @@ type CollectionDelete[IDT comparable] interface {
 type CollectionSoftDeletedPrune[IDT comparable] interface {
 	// Prune definitely removes one deleted element by id. It returns false if the
 	// element does not exist or is not deleted. Returns true otherwise.
-	Prune(id IDT) (bool, error)
+	Prune(id IDT, filter FilterExpression) (bool, error)
 
 	// PruneMany definitely removes many deleted elements by their ids. It returns
 	// the amount of pruned elements.
-	PruneMany(ids []IDT) (int, error)
+	PruneMany(ids []IDT, filter FilterExpression) (int, error)
 }
 
 // The CollectionSoftDeletedRestore interface supports a method to restore (un-delete) a single deleted
@@ -76,11 +76,11 @@ type CollectionSoftDeletedPrune[IDT comparable] interface {
 type CollectionSoftDeletedRestore[IDT comparable] interface {
 	// Restore restores one DELETED element by its id. It returns false if the
 	// element does not exist or is not deleted. Returns true otherwise.
-	Restore(id IDT) (bool, error)
+	Restore(id IDT, filter FilterExpression) (bool, error)
 
 	// RestoreMany restores many DELETED elements by its id. It returns the number
 	// of elements restored this way.
-	RestoreMany(ids []IDT) (int, error)
+	RestoreMany(ids []IDT, filter FilterExpression) (int, error)
 }
 
 // The CollectionUpdate interface supports a method to update a single element. The update process must
@@ -93,7 +93,7 @@ type CollectionUpdate[IDT comparable, RT Resource[IDT]] interface {
 	// Here, the error is relevant: it may involve validation errors or index errors,
 	// not just plain storage errors. This includes index error (e.g. unique constraint
 	// was violated somehow).
-	UpdateOne(id IDT, values map[string]any) (bool, error)
+	UpdateOne(id IDT, filter FilterExpression, values map[string]any) (bool, error)
 }
 
 // The CollectionCreate interface supports a method to create a single element. The create process must
