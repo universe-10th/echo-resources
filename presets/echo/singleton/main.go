@@ -80,10 +80,10 @@ type SoftDeletedResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	ResourceService[IDT, RT]
 }
 
-func (SoftDeletedResourceService *SoftDeletedResourceService[IDT, RT]) Restore(c echo.Context) error {
+func (SoftDeletedResourceService *SoftDeletedResourceService[IDT, RT]) Restore(context echo.Context) error {
 	return nil
 }
 
-func (SoftDeletedResourceService *SoftDeletedResourceService[IDT, RT]) Prune(c echo.Context) error {
+func (SoftDeletedResourceService *SoftDeletedResourceService[IDT, RT]) Prune(context echo.Context) error {
 	return nil
 }
