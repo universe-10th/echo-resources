@@ -59,7 +59,7 @@ func TestMakeCollectionRendererRendersItemsEnvelope(t *testing.T) {
 	t.Parallel()
 
 	context, recorder := newRendererContext()
-	renderer := MakeCollectionRenderer[int, captureResource]()
+	renderer := MakeListRenderer[int, captureResource]()
 
 	err := renderer(context, http.StatusOK, []captureResource{
 		{ID: 10, Name: "Ada"},
@@ -88,7 +88,7 @@ func TestMakeMappedCollectionRendererRendersProjectedItems(t *testing.T) {
 	t.Parallel()
 
 	context, recorder := newRendererContext()
-	renderer := MakeMappedCollectionRenderer[int, captureResource](func(resource *captureResource) renderedCaptureResource {
+	renderer := MakeMappedListRenderer[int, captureResource](func(resource *captureResource) renderedCaptureResource {
 		return renderedCaptureResource{ID: resource.ID, Name: resource.Name}
 	})
 

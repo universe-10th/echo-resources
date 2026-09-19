@@ -1,6 +1,8 @@
 package collection
 
 import (
+	"net/http"
+
 	"github.com/labstack/echo/v4"
 	"github.com/universe-10th/echo-resources/types"
 	echo2 "github.com/universe-10th/echo-resources/utils/echo"
@@ -12,12 +14,20 @@ import (
 // Implements: WithGet, WithList
 type ReadOnlyResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	listEngine         types.CollectionList[IDT, RT]
-	collectionRenderer echo2.CollectionRenderer
+	collectionRenderer echo2.ListRenderer
 	elementRenderer    echo2.ElementRenderer
+	listRetriever      echo2.CollectionListRetrieverFunc[IDT, RT]
+	elementRetriever   echo2.CollectionElementRetrieverFunc[IDT, RT]
 }
 
+// List renders all the elements being queried.
 func (readOnlyResourceService *ReadOnlyResourceService[IDT, RT]) List(context echo.Context) error {
-	return nil
+	elements, skip, total, err := readOnlyResourceService.listRetriever(context, readOnlyResourceService.listEngine)
+	if err != nil {
+		return err
+	}
+
+	return readOnlyResourceService.RenderCollection(context, http.StatusOK, elements, skip, total)
 }
 
 func (readOnlyResourceService *ReadOnlyResourceService[IDT, RT]) Get(context echo.Context) error {
@@ -64,7 +74,7 @@ func (resourceService *ResourceService[IDT, RT]) Delete(context echo.Context) er
 // Implements: WithGet, WithList, WithSoftDeletedGet, WithSoftDeletedList
 type ReadOnlySoftDeletedResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	ReadOnlyResourceService[IDT, RT]
-	deletedCollectionRenderer echo2.CollectionRenderer
+	deletedCollectionRenderer echo2.ListRenderer
 	deletedElementRenderer    echo2.ElementRenderer
 }
 

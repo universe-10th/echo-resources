@@ -10,10 +10,10 @@ import (
 // is tuned for single elements.
 type ElementRenderer func(context echo.Context, code int, obj any) error
 
-// A CollectionRenderer is an arbitrary function used to render a response.
+// A ListRenderer is an arbitrary function used to render a response.
 // The renderer does not, by default, set dynamic headers. This response
 // is toned for lists of elements.
-type CollectionRenderer func(context echo.Context, code int, objs any, skip int64, total int64) error
+type ListRenderer func(context echo.Context, code int, objs any, skip int64, total int64) error
 
 // MakeElementRenderer creates a renderer for single elements.
 func MakeElementRenderer[IDT comparable, RT types.Resource[IDT]]() ElementRenderer {
@@ -47,8 +47,8 @@ func MakeMappedElementRenderer[IDT comparable, RT types.Resource[IDT], OT any](m
 	}
 }
 
-// MakeCollectionRenderer creates a renderer for collections of elements.
-func MakeCollectionRenderer[IDT comparable, RT types.Resource[IDT]]() CollectionRenderer {
+// MakeListRenderer creates a renderer for collections of elements.
+func MakeListRenderer[IDT comparable, RT types.Resource[IDT]]() ListRenderer {
 	return func(context echo.Context, code int, objs any, skip int64, total int64) error {
 		switch objs := objs.(type) {
 		case []RT:
@@ -72,10 +72,10 @@ func MakeCollectionRenderer[IDT comparable, RT types.Resource[IDT]]() Collection
 	}
 }
 
-// MakeMappedCollectionRenderer creates a renderer for collections of elements,
-// using a proper mapping function (such function accepts a pointer) converting
-// each resource element to a specific output type, serving as projector.
-func MakeMappedCollectionRenderer[IDT comparable, RT types.Resource[IDT], OT any](mapper func(*RT) OT) CollectionRenderer {
+// MakeMappedListRenderer creates a renderer for collections of elements, using
+// a proper mapping function (such function accepts a pointer) converting each
+// resource element to a specific output type, serving as projector.
+func MakeMappedListRenderer[IDT comparable, RT types.Resource[IDT], OT any](mapper func(*RT) OT) ListRenderer {
 	return func(context echo.Context, code int, objs any, skip int64, total int64) error {
 		switch objs := objs.(type) {
 		case []RT:
