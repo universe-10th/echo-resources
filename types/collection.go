@@ -6,10 +6,10 @@ package types
 // and sort values.
 type ListOptions struct {
 	// Skip is treated as 0 if negative.
-	Skip int
+	Skip int64
 
 	// Limit is not used if 0 or negative.
-	Limit int
+	Limit int64
 
 	// Sort can be empty. Implementations should validate fields against an allowlist.
 	Sort SortExpression
