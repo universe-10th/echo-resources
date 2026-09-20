@@ -161,6 +161,36 @@ func (e AlreadyUsedError) Code() ErrorCode {
 	return ErrConflict
 }
 
+// SingletonAlreadyExistsError stands for when creating a singleton would
+// collide with an existing active singleton in the same scope.
+type SingletonAlreadyExistsError struct{}
+
+// Error implements the error interface in SingletonAlreadyExistsError.
+func (e SingletonAlreadyExistsError) Error() string {
+	return "already exists"
+}
+
+// Code implements the error code for the Error interface in
+// SingletonAlreadyExistsError, returning ErrConflict.
+func (e SingletonAlreadyExistsError) Code() ErrorCode {
+	return ErrConflict
+}
+
+// SingletonDeletedExistsError stands for when creating a singleton would
+// collide with an existing deleted singleton in the same scope.
+type SingletonDeletedExistsError struct{}
+
+// Error implements the error interface in SingletonDeletedExistsError.
+func (e SingletonDeletedExistsError) Error() string {
+	return "restore it"
+}
+
+// Code implements the error code for the Error interface in
+// SingletonDeletedExistsError, returning ErrConflict.
+func (e SingletonDeletedExistsError) Code() ErrorCode {
+	return ErrConflict
+}
+
 // ValidationError stands for when fields are invalid on create / patch.
 type ValidationError struct {
 	Errors map[string]any `json:"errors"`
@@ -214,6 +244,8 @@ var (
 		KeyFields: nil,
 		Values:    nil,
 	}
+	_ Error = SingletonAlreadyExistsError{}
+	_ Error = SingletonDeletedExistsError{}
 	_ Error = ValidationError{
 		Errors: nil,
 	}
