@@ -5,106 +5,38 @@ import (
 	"github.com/universe-10th/echo-resources/types"
 )
 
-// An ElementRenderer is an arbitrary function used to render a response.
-// The renderer does not, by default, set dynamic headers. This response
-// is tuned for single elements.
-type ElementRenderer func(context echo.Context, code int, obj any) error
-
-// A ListRenderer is an arbitrary function used to render a response.
-// The renderer does not, by default, set dynamic headers. This response
-// is toned for lists of elements.
-type ListRenderer func(context echo.Context, code int, objs any, skip int64, total int64) error
-
-// MakeElementRenderer creates a renderer for single elements.
-func MakeElementRenderer[IDT comparable, RT types.Resource[IDT]]() ElementRenderer {
-	return func(context echo.Context, code int, obj any) error {
-		switch obj := obj.(type) {
-		case RT:
-			return context.JSON(code, obj)
-		case *RT:
-			return context.JSON(code, obj)
-		default:
-			response, code := types.RenderError(types.InternalError{})
-			return context.JSON(int(code), response)
-		}
+// RenderElement renders single elements.
+func RenderElement[IDT comparable, RT types.Resource[IDT]](context echo.Context, code int, obj any) error {
+	switch obj := obj.(type) {
+	case RT:
+		return context.JSON(code, obj)
+	case *RT:
+		return context.JSON(code, obj)
+	default:
+		response, code := types.RenderError(types.InternalError{})
+		return context.JSON(int(code), response)
 	}
 }
 
-// MakeMappedElementRenderer creates a renderer for single elements, using
-// a proper mapping function (such function accepts a pointer) converting
-// the resource element to a specific output type, serving as projection.
-func MakeMappedElementRenderer[IDT comparable, RT types.Resource[IDT], OT any](mapper func(*RT) OT) ElementRenderer {
-	return func(context echo.Context, code int, obj any) error {
-		switch obj := obj.(type) {
-		case RT:
-			return context.JSON(code, mapper(&obj))
-		case *RT:
-			return context.JSON(code, mapper(obj))
-		default:
-			response, code := types.RenderError(types.InternalError{})
-			return context.JSON(int(code), response)
-		}
-	}
-}
-
-// MakeListRenderer creates a renderer for collections of elements.
-func MakeListRenderer[IDT comparable, RT types.Resource[IDT]]() ListRenderer {
-	return func(context echo.Context, code int, objs any, skip int64, total int64) error {
-		switch objs := objs.(type) {
-		case []RT:
-			return context.JSON(code, map[string]any{
-				"skip":  skip,
-				"count": len(objs),
-				"total": total,
-				"items": objs,
-			})
-		case []*RT:
-			return context.JSON(code, map[string]any{
-				"skip":  skip,
-				"count": len(objs),
-				"total": total,
-				"items": objs,
-			})
-		default:
-			response, code := types.RenderError(types.InternalError{})
-			return context.JSON(int(code), response)
-		}
-	}
-}
-
-// MakeMappedListRenderer creates a renderer for collections of elements, using
-// a proper mapping function (such function accepts a pointer) converting each
-// resource element to a specific output type, serving as projector.
-func MakeMappedListRenderer[IDT comparable, RT types.Resource[IDT], OT any](mapper func(*RT) OT) ListRenderer {
-	return func(context echo.Context, code int, objs any, skip int64, total int64) error {
-		switch objs := objs.(type) {
-		case []RT:
-			len_ := len(objs)
-			projected := make([]OT, len_)
-			for index, value := range objs {
-				projected[index] = mapper(&value)
-			}
-			return context.JSON(code, map[string]any{
-				"skip":  skip,
-				"count": len_,
-				"total": total,
-				"items": projected,
-			})
-		case []*RT:
-			len_ := len(objs)
-			projected := make([]OT, len_)
-			for index, value := range objs {
-				projected[index] = mapper(value)
-			}
-			return context.JSON(code, map[string]any{
-				"skip":  skip,
-				"count": len_,
-				"total": total,
-				"items": projected,
-			})
-		default:
-			response, code := types.RenderError(types.InternalError{})
-			return context.JSON(int(code), response)
-		}
+// RenderList renders a collections of elements.
+func RenderList[IDT comparable, RT types.Resource[IDT]](context echo.Context, code int, objs any, page int64, totalPages int64) error {
+	switch objs := objs.(type) {
+	case []RT:
+		return context.JSON(code, map[string]any{
+			"page":       page,
+			"count":      len(objs),
+			"totalPages": totalPages,
+			"elements":   objs,
+		})
+	case []*RT:
+		return context.JSON(code, map[string]any{
+			"page":       page,
+			"count":      len(objs),
+			"totalPages": totalPages,
+			"items":      objs,
+		})
+	default:
+		response, code := types.RenderError(types.InternalError{})
+		return context.JSON(int(code), response)
 	}
 }
