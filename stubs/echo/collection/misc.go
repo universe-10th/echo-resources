@@ -50,6 +50,14 @@ type MayApplyElementConstraints[IDT comparable, RT types.Resource[IDT]] interfac
 
 // ParsesID allows parsing the current element id from the URL.
 type ParsesID[IDT comparable] interface {
+	// URLArg tells which one is the name to use for the in-URL / in-PATH
+	// argument. For example, if URLArg() returns "p_id", the echo router
+	// will use .../{prefix}/:p_id as URL. This value MUST be constant and
+	// MUST satisfy the regex: ^[a-zA-Z0-9]+([-_][a-zA-Z0-9]+)*$.
+	URLArg() string
+
+	// ParseID parses the ID from the URL. It MUST be implemented to use
+	// the argument returned by the URLArg method.
 	ParseID(context echo.Context) (IDT, error)
 }
 
