@@ -25,12 +25,34 @@ func (r captureResource) GetID() int {
 	return r.ID
 }
 
+func (r captureResource) SetID(id int) {}
+
+func (r captureResource) GetIDField() string {
+	return "id"
+}
+
 func (r captureResource) GetCreationTime() time.Time {
 	return r.CreatedAt
 }
 
 func (r captureResource) GetLastUpdateTime() time.Time {
 	return r.UpdatedAt
+}
+
+func (r captureResource) SetCreationTime() {}
+
+func (r captureResource) SetCreationTimeIn(location *time.Location) {}
+
+func (r captureResource) SetLastUpdateTime() {}
+
+func (r captureResource) SetLastUpdateTimeIn(location *time.Location) {}
+
+func (r captureResource) GetCreationTimeField() string {
+	return "created_at"
+}
+
+func (r captureResource) GetLastUpdateTimeField() string {
+	return "updated_at"
 }
 
 func TestMakeBodyCapturerBindsJSONBody(t *testing.T) {

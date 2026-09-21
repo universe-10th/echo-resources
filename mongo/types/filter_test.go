@@ -19,7 +19,7 @@ type filterProduct struct {
 func TestFilterValidatorUsesDocumentFields(t *testing.T) {
 	t.Parallel()
 
-	mapping := mongoreflection.NewFieldsMapping[bson.ObjectID, filterProduct]()
+	mapping := mongoreflection.NewFieldsMapping[bson.ObjectID, *filterProduct]()
 	validator := NewFilterValidator(mapping)
 
 	if mapping.ResourceType() != reflect.TypeOf(filterProduct{}) {
@@ -55,7 +55,7 @@ func TestFilterValidatorUsesDocumentFields(t *testing.T) {
 func TestFilterSerializerProducesBSONPredicate(t *testing.T) {
 	t.Parallel()
 
-	serializer := NewFilterSerializer(mongoreflection.NewFieldsMapping[bson.ObjectID, filterProduct]())
+	serializer := NewFilterSerializer(mongoreflection.NewFieldsMapping[bson.ObjectID, *filterProduct]())
 
 	got := serializer.Serialize(resourcetypes.FilterExpression{
 		Operator: resourcetypes.FilterAnd,

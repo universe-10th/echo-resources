@@ -30,6 +30,40 @@ func TestResourceReturnsObjectIDAndTimestamps(t *testing.T) {
 	if got := resource.GetLastUpdateTime(); !got.Equal(updatedAt) {
 		t.Fatalf("expected update time %s, got %s", updatedAt, got)
 	}
+
+	if got := resource.GetIDField(); got != "id" {
+		t.Fatalf("expected id field, got %q", got)
+	}
+
+	if got := resource.GetCreationTimeField(); got != "created_at" {
+		t.Fatalf("expected created_at field, got %q", got)
+	}
+
+	if got := resource.GetLastUpdateTimeField(); got != "updated_at" {
+		t.Fatalf("expected updated_at field, got %q", got)
+	}
+}
+
+func TestResourceSettersMutateObjectIDAndTimestamps(t *testing.T) {
+	t.Parallel()
+
+	id := bson.NewObjectID()
+	resource := Resource{}
+	resource.SetID(id)
+	resource.SetCreationTime()
+	resource.SetLastUpdateTime()
+
+	if got := resource.GetID(); got != id {
+		t.Fatalf("expected ID %s, got %s", id.Hex(), got.Hex())
+	}
+
+	if resource.GetCreationTime().IsZero() {
+		t.Fatal("expected creation time to be set")
+	}
+
+	if resource.GetLastUpdateTime().IsZero() {
+		t.Fatal("expected update time to be set")
+	}
 }
 
 func TestSoftDeletedResourceReportsActiveDocument(t *testing.T) {
@@ -68,6 +102,31 @@ func TestSoftDeletedResourceReportsDeletedDocument(t *testing.T) {
 
 	if !got.Equal(deletedAt) {
 		t.Fatalf("expected deletion time %s, got %s", deletedAt, *got)
+	}
+
+	if got := resource.GetDeletionTimeField(); got != "deleted_at" {
+		t.Fatalf("expected deleted_at field, got %q", got)
+	}
+}
+
+func TestSoftDeletedResourceSettersMutateDeletionTime(t *testing.T) {
+	t.Parallel()
+
+	resource := SoftDeletedResource{}
+	resource.SetDeletionTime()
+
+	if !resource.IsDeleted() {
+		t.Fatal("expected deletion time to mark resource as deleted")
+	}
+
+	if resource.GetDeletionTime() == nil {
+		t.Fatal("expected deletion time to be set")
+	}
+
+	resource.UnsetDeletionTime()
+
+	if resource.IsDeleted() {
+		t.Fatal("expected deletion time to be unset")
 	}
 }
 

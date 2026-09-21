@@ -22,6 +22,16 @@ func (r Resource) GetID() bson.ObjectID {
 	return r.ID
 }
 
+// SetID sets the document primary key.
+func (r *Resource) SetID(id bson.ObjectID) {
+	r.ID = id
+}
+
+// GetIDField returns the JSON field used for the document primary key.
+func (r Resource) GetIDField() string {
+	return "id"
+}
+
 // GetCreationTime returns the time when the document was first persisted.
 func (r Resource) GetCreationTime() time.Time {
 	return r.CreatedAt
@@ -30,6 +40,42 @@ func (r Resource) GetCreationTime() time.Time {
 // GetLastUpdateTime returns the time when the document was last updated.
 func (r Resource) GetLastUpdateTime() time.Time {
 	return r.UpdatedAt
+}
+
+// SetCreationTime sets the creation time in UTC.
+func (r *Resource) SetCreationTime() {
+	r.SetCreationTimeIn(time.UTC)
+}
+
+// SetCreationTimeIn sets the creation time in a specific location. Nil uses UTC.
+func (r *Resource) SetCreationTimeIn(location *time.Location) {
+	if location == nil {
+		location = time.UTC
+	}
+	r.CreatedAt = time.Now().In(location)
+}
+
+// SetLastUpdateTime sets the last update time in UTC.
+func (r *Resource) SetLastUpdateTime() {
+	r.SetLastUpdateTimeIn(time.UTC)
+}
+
+// SetLastUpdateTimeIn sets the last update time in a specific location. Nil uses UTC.
+func (r *Resource) SetLastUpdateTimeIn(location *time.Location) {
+	if location == nil {
+		location = time.UTC
+	}
+	r.UpdatedAt = time.Now().In(location)
+}
+
+// GetCreationTimeField returns the JSON field used for the creation timestamp.
+func (r Resource) GetCreationTimeField() string {
+	return "created_at"
+}
+
+// GetLastUpdateTimeField returns the JSON field used for the update timestamp.
+func (r Resource) GetLastUpdateTimeField() string {
+	return "updated_at"
 }
 
 // SoftDeletedResource is a reusable MongoDB document fragment for records that
@@ -49,6 +95,30 @@ func (r SoftDeletedResource) IsDeleted() bool {
 	return r.DeletedAt != nil
 }
 
+// SetDeletionTime sets the deletion time in UTC.
+func (r *SoftDeletedResource) SetDeletionTime() {
+	r.SetDeletionTimeIn(time.UTC)
+}
+
+// SetDeletionTimeIn sets the deletion time in a specific location. Nil uses UTC.
+func (r *SoftDeletedResource) SetDeletionTimeIn(location *time.Location) {
+	if location == nil {
+		location = time.UTC
+	}
+	deletedAt := time.Now().In(location)
+	r.DeletedAt = &deletedAt
+}
+
+// UnsetDeletionTime clears the deletion time.
+func (r *SoftDeletedResource) UnsetDeletionTime() {
+	r.DeletedAt = nil
+}
+
+// GetDeletionTimeField returns the JSON field used for the deletion timestamp.
+func (r SoftDeletedResource) GetDeletionTimeField() string {
+	return "deleted_at"
+}
+
 // SoftDeleteIndexModel returns a reusable index for querying soft-deleted
 // documents. It also keeps this package's MongoDB dependency explicit.
 func SoftDeleteIndexModel() mongo.IndexModel {
@@ -58,6 +128,6 @@ func SoftDeleteIndexModel() mongo.IndexModel {
 }
 
 var (
-	_ resourcetypes.Resource[bson.ObjectID]            = Resource{}
-	_ resourcetypes.SoftDeletedResource[bson.ObjectID] = SoftDeletedResource{}
+	_ resourcetypes.Resource[bson.ObjectID]            = (*Resource)(nil)
+	_ resourcetypes.SoftDeletedResource[bson.ObjectID] = (*SoftDeletedResource)(nil)
 )

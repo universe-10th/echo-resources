@@ -30,6 +30,16 @@ func (r Resource[T]) GetID() T {
 	return r.ID
 }
 
+// SetID sets the model primary key.
+func (r *Resource[T]) SetID(id T) {
+	r.ID = id
+}
+
+// GetIDField returns the JSON field used for the model primary key.
+func (r Resource[T]) GetIDField() string {
+	return "id"
+}
+
 // GetCreationTime returns the time when the model was first persisted.
 func (r Resource[T]) GetCreationTime() time.Time {
 	return r.CreatedAt
@@ -38,6 +48,42 @@ func (r Resource[T]) GetCreationTime() time.Time {
 // GetLastUpdateTime returns the time when the model was last updated.
 func (r Resource[T]) GetLastUpdateTime() time.Time {
 	return r.UpdatedAt
+}
+
+// SetCreationTime sets the creation time in UTC.
+func (r *Resource[T]) SetCreationTime() {
+	r.SetCreationTimeIn(time.UTC)
+}
+
+// SetCreationTimeIn sets the creation time in a specific location. Nil uses UTC.
+func (r *Resource[T]) SetCreationTimeIn(location *time.Location) {
+	if location == nil {
+		location = time.UTC
+	}
+	r.CreatedAt = time.Now().In(location)
+}
+
+// SetLastUpdateTime sets the last update time in UTC.
+func (r *Resource[T]) SetLastUpdateTime() {
+	r.SetLastUpdateTimeIn(time.UTC)
+}
+
+// SetLastUpdateTimeIn sets the last update time in a specific location. Nil uses UTC.
+func (r *Resource[T]) SetLastUpdateTimeIn(location *time.Location) {
+	if location == nil {
+		location = time.UTC
+	}
+	r.UpdatedAt = time.Now().In(location)
+}
+
+// GetCreationTimeField returns the JSON field used for the creation timestamp.
+func (r Resource[T]) GetCreationTimeField() string {
+	return "created_at"
+}
+
+// GetLastUpdateTimeField returns the JSON field used for the update timestamp.
+func (r Resource[T]) GetLastUpdateTimeField() string {
+	return "updated_at"
 }
 
 // SoftDeletedResource is a reusable GORM model fragment for records that keep a
@@ -62,14 +108,40 @@ func (r SoftDeletedResource[T]) IsDeleted() bool {
 	return r.DeletedAt.Valid
 }
 
+// SetDeletionTime sets the deletion time in UTC.
+func (r *SoftDeletedResource[T]) SetDeletionTime() {
+	r.SetDeletionTimeIn(time.UTC)
+}
+
+// SetDeletionTimeIn sets the deletion time in a specific location. Nil uses UTC.
+func (r *SoftDeletedResource[T]) SetDeletionTimeIn(location *time.Location) {
+	if location == nil {
+		location = time.UTC
+	}
+	r.DeletedAt = gorm.DeletedAt{
+		Time:  time.Now().In(location),
+		Valid: true,
+	}
+}
+
+// UnsetDeletionTime clears the deletion time.
+func (r *SoftDeletedResource[T]) UnsetDeletionTime() {
+	r.DeletedAt = gorm.DeletedAt{}
+}
+
+// GetDeletionTimeField returns the JSON field used for the deletion timestamp.
+func (r SoftDeletedResource[T]) GetDeletionTimeField() string {
+	return "deleted_at"
+}
+
 var (
-	_ resourcetypes.Resource[int]                  = Resource[int]{}
-	_ resourcetypes.Resource[int64]                = Resource[int64]{}
-	_ resourcetypes.Resource[uint]                 = Resource[uint]{}
-	_ resourcetypes.Resource[string]               = Resource[string]{}
-	_ resourcetypes.Resource[time.Time]            = Resource[time.Time]{}
-	_ resourcetypes.Resource[uuid.UUID]            = Resource[uuid.UUID]{}
-	_ resourcetypes.SoftDeletedResource[int]       = SoftDeletedResource[int]{}
-	_ resourcetypes.SoftDeletedResource[string]    = SoftDeletedResource[string]{}
-	_ resourcetypes.SoftDeletedResource[uuid.UUID] = SoftDeletedResource[uuid.UUID]{}
+	_ resourcetypes.Resource[int]                  = (*Resource[int])(nil)
+	_ resourcetypes.Resource[int64]                = (*Resource[int64])(nil)
+	_ resourcetypes.Resource[uint]                 = (*Resource[uint])(nil)
+	_ resourcetypes.Resource[string]               = (*Resource[string])(nil)
+	_ resourcetypes.Resource[time.Time]            = (*Resource[time.Time])(nil)
+	_ resourcetypes.Resource[uuid.UUID]            = (*Resource[uuid.UUID])(nil)
+	_ resourcetypes.SoftDeletedResource[int]       = (*SoftDeletedResource[int])(nil)
+	_ resourcetypes.SoftDeletedResource[string]    = (*SoftDeletedResource[string])(nil)
+	_ resourcetypes.SoftDeletedResource[uuid.UUID] = (*SoftDeletedResource[uuid.UUID])(nil)
 )

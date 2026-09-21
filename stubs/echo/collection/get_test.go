@@ -19,6 +19,12 @@ func (r getTestResource) GetID() int {
 	return r.id
 }
 
+func (r getTestResource) SetID(id int) {}
+
+func (r getTestResource) GetIDField() string {
+	return "id"
+}
+
 func (r getTestResource) GetCreationTime() time.Time {
 	return time.Time{}
 }
@@ -27,12 +33,38 @@ func (r getTestResource) GetLastUpdateTime() time.Time {
 	return time.Time{}
 }
 
+func (r getTestResource) SetCreationTime() {}
+
+func (r getTestResource) SetCreationTimeIn(location *time.Location) {}
+
+func (r getTestResource) SetLastUpdateTime() {}
+
+func (r getTestResource) SetLastUpdateTimeIn(location *time.Location) {}
+
+func (r getTestResource) GetCreationTimeField() string {
+	return "created_at"
+}
+
+func (r getTestResource) GetLastUpdateTimeField() string {
+	return "updated_at"
+}
+
 func (r getTestResource) GetDeletionTime() *time.Time {
 	return nil
 }
 
 func (r getTestResource) IsDeleted() bool {
 	return r.GetDeletionTime() != nil
+}
+
+func (r getTestResource) SetDeletionTime() {}
+
+func (r getTestResource) SetDeletionTimeIn(location *time.Location) {}
+
+func (r getTestResource) UnsetDeletionTime() {}
+
+func (r getTestResource) GetDeletionTimeField() string {
+	return "deleted_at"
 }
 
 type getTestEngine struct {

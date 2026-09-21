@@ -21,12 +21,34 @@ func (r singletonTestResource) GetID() int {
 	return r.id
 }
 
+func (r singletonTestResource) SetID(id int) {}
+
+func (r singletonTestResource) GetIDField() string {
+	return "id"
+}
+
 func (r singletonTestResource) GetCreationTime() time.Time {
 	return time.Time{}
 }
 
 func (r singletonTestResource) GetLastUpdateTime() time.Time {
 	return time.Time{}
+}
+
+func (r singletonTestResource) SetCreationTime() {}
+
+func (r singletonTestResource) SetCreationTimeIn(location *time.Location) {}
+
+func (r singletonTestResource) SetLastUpdateTime() {}
+
+func (r singletonTestResource) SetLastUpdateTimeIn(location *time.Location) {}
+
+func (r singletonTestResource) GetCreationTimeField() string {
+	return "created_at"
+}
+
+func (r singletonTestResource) GetLastUpdateTimeField() string {
+	return "updated_at"
 }
 
 func (r singletonTestResource) GetDeletionTime() *time.Time {
@@ -39,6 +61,16 @@ func (r singletonTestResource) GetDeletionTime() *time.Time {
 
 func (r singletonTestResource) IsDeleted() bool {
 	return r.deleted
+}
+
+func (r singletonTestResource) SetDeletionTime() {}
+
+func (r singletonTestResource) SetDeletionTimeIn(location *time.Location) {}
+
+func (r singletonTestResource) UnsetDeletionTime() {}
+
+func (r singletonTestResource) GetDeletionTimeField() string {
+	return "deleted_at"
 }
 
 type singletonCreateTestEngine struct {

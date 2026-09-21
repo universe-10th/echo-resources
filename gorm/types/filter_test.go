@@ -19,7 +19,7 @@ type filterProduct struct {
 func TestFilterValidatorUsesModelFields(t *testing.T) {
 	t.Parallel()
 
-	mapping := gormreflection.NewFieldsMapping[int, filterProduct]()
+	mapping := gormreflection.NewFieldsMapping[int, *filterProduct]()
 	validator := NewFilterValidator(mapping)
 
 	if mapping.ResourceType() != reflect.TypeOf(filterProduct{}) {
@@ -58,7 +58,7 @@ func TestFilterValidatorUsesModelFields(t *testing.T) {
 func TestFilterSerializerProducesSQLPredicate(t *testing.T) {
 	t.Parallel()
 
-	serializer := NewFilterSerializer(gormreflection.NewFieldsMapping[int, filterProduct]())
+	serializer := NewFilterSerializer(gormreflection.NewFieldsMapping[int, *filterProduct]())
 
 	got := serializer.Serialize(resourcetypes.FilterExpression{
 		Operator: resourcetypes.FilterAnd,
