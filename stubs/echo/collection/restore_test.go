@@ -53,8 +53,8 @@ func (e *restoreTestEngine) Restore(id int) (getTestResource, error) {
 	return getTestResource{id: 200}, e.restoreErr
 }
 
-func (e *restoreTestEngine) RenderElement(context echo.Context, element getTestResource) error {
-	e.calls = append(e.calls, "RenderElement:"+strconv.Itoa(element.id))
+func (e *restoreTestEngine) RenderElement(context echo.Context, element getTestResource, created bool) error {
+	e.calls = append(e.calls, "RenderElement:"+strconv.Itoa(element.id)+":"+strconv.FormatBool(created))
 	return nil
 }
 
@@ -81,7 +81,7 @@ func TestRestoreEndpointStubFollowsExpectedOrder(t *testing.T) {
 		"ApplyDeletedFilter:true",
 		"RetrieveElement:42",
 		"Restore:100",
-		"RenderElement:200",
+		"RenderElement:200:false",
 	}
 	if !reflect.DeepEqual(engine.calls, expected) {
 		t.Fatalf("calls = %#v, want %#v", engine.calls, expected)

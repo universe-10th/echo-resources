@@ -128,8 +128,10 @@ func (e *singletonCreateTestEngine) Save(element *singletonTestResource) error {
 	return nil
 }
 
-func (e *singletonCreateTestEngine) RenderElement(context echo.Context, element singletonTestResource) error {
-	e.calls = append(e.calls, "RenderElement:"+strconv.Itoa(element.id))
+func (e *singletonCreateTestEngine) RenderElement(
+	context echo.Context, element singletonTestResource, created bool,
+) error {
+	e.calls = append(e.calls, "RenderElement:"+strconv.Itoa(element.id)+":"+strconv.FormatBool(created))
 	return nil
 }
 
@@ -157,7 +159,7 @@ func TestCreateEndpointStubCreatesWhenScopedSingletonDoesNotExist(t *testing.T) 
 		"ApplyPathConstraintsToElement:100",
 		"Validate:42",
 		"Save:42",
-		"RenderElement:42",
+		"RenderElement:42:true",
 	}
 	if !reflect.DeepEqual(engine.calls, expected) {
 		t.Fatalf("calls = %#v, want %#v", engine.calls, expected)

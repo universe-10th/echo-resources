@@ -46,8 +46,10 @@ func (e *singletonRestoreTestEngine) Restore(id int) (singletonTestResource, err
 	return singletonTestResource{id: 84}, e.restoreErr
 }
 
-func (e *singletonRestoreTestEngine) RenderElement(context echo.Context, element singletonTestResource) error {
-	e.calls = append(e.calls, "RenderElement:"+strconv.Itoa(element.id))
+func (e *singletonRestoreTestEngine) RenderElement(
+	context echo.Context, element singletonTestResource, created bool,
+) error {
+	e.calls = append(e.calls, "RenderElement:"+strconv.Itoa(element.id)+":"+strconv.FormatBool(created))
 	return nil
 }
 
@@ -73,7 +75,7 @@ func TestRestoreEndpointStubFollowsExpectedOrder(t *testing.T) {
 		"ApplyDeletedFilter:true",
 		"RetrieveElement",
 		"Restore:42",
-		"RenderElement:84",
+		"RenderElement:84:false",
 	}
 	if !reflect.DeepEqual(engine.calls, expected) {
 		t.Fatalf("calls = %#v, want %#v", engine.calls, expected)

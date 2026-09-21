@@ -73,5 +73,5 @@ func (updateEndpointStub UpdateEndpointStub[IDT, RT]) Update(context echo.Contex
 		return RenderError(context, types.InternalError{})
 	}
 
-	return engine.RenderElement(context, element)
+	return engine.RenderElement(context, element, false)
 }

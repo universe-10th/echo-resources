@@ -21,7 +21,7 @@ func get[IDT comparable, RT types.Resource[IDT]](
 		return err
 	}
 
-	return engine.RenderElement(context, element)
+	return engine.RenderElement(context, element, false)
 }
 
 // GetEndpointStub implements a stub that provides an echo endpoint based on an

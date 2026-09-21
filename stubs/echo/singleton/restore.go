@@ -46,5 +46,5 @@ func (restoreEndpointStub RestoreEndpointStub[IDT, RT]) Restore(context echo.Con
 		return RenderError(context, types.InternalError{})
 	}
 
-	return engine.RenderElement(context, restoredElement)
+	return engine.RenderElement(context, restoredElement, false)
 }

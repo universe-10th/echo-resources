@@ -39,8 +39,8 @@ func (e *createTestEngine) Save(element *getTestResource) error {
 	return e.saveErr
 }
 
-func (e *createTestEngine) RenderElement(context echo.Context, element getTestResource) error {
-	e.calls = append(e.calls, "RenderElement:"+strconv.Itoa(element.id))
+func (e *createTestEngine) RenderElement(context echo.Context, element getTestResource, created bool) error {
+	e.calls = append(e.calls, "RenderElement:"+strconv.Itoa(element.id)+":"+strconv.FormatBool(created))
 	return nil
 }
 
@@ -65,7 +65,7 @@ func TestCreateEndpointStubFollowsExpectedOrder(t *testing.T) {
 		"ApplyPathConstraintsToElement:100",
 		"Validate:42",
 		"Save:42",
-		"RenderElement:42",
+		"RenderElement:42:true",
 	}
 	if !reflect.DeepEqual(engine.calls, expected) {
 		t.Fatalf("calls = %#v, want %#v", engine.calls, expected)

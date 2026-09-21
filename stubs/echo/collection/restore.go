@@ -50,5 +50,5 @@ func (restoreEndpointStub RestoreEndpointStub[IDT, RT]) Restore(context echo.Con
 	}
 
 	// 7. Render the restored element.
-	return engine.RenderElement(context, restoredElement)
+	return engine.RenderElement(context, restoredElement, false)
 }

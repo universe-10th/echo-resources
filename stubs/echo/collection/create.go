@@ -65,5 +65,5 @@ func (createEndpointStub CreateEndpointStub[IDT, RT]) Create(context echo.Contex
 	}
 
 	// 5. Render the final element.
-	return engine.RenderElement(context, element)
+	return engine.RenderElement(context, element, true)
 }

@@ -34,7 +34,7 @@ type RetrievesElement[IDT comparable, RT types.Resource[IDT]] interface {
 
 // RendersElement allows rendering an element.
 type RendersElement[IDT comparable, RT types.Resource[IDT]] interface {
-	RenderElement(context echo.Context, element RT) error
+	RenderElement(context echo.Context, element RT, created bool) error
 }
 
 // DeletesElement allows deleting an element by id.

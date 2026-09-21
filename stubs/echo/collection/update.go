@@ -81,5 +81,5 @@ func (updateEndpointStub UpdateEndpointStub[IDT, RT]) Update(context echo.Contex
 	}
 
 	// 12. Render the element.
-	return engine.RenderElement(context, element)
+	return engine.RenderElement(context, element, false)
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/labstack/echo/v4"
@@ -39,8 +40,10 @@ func (e *singletonGetTestEngine) RetrieveElement(
 	return singletonTestResource{id: 1}, true, nil
 }
 
-func (e *singletonGetTestEngine) RenderElement(context echo.Context, element singletonTestResource) error {
-	e.calls = append(e.calls, "RenderElement")
+func (e *singletonGetTestEngine) RenderElement(
+	context echo.Context, element singletonTestResource, created bool,
+) error {
+	e.calls = append(e.calls, "RenderElement:"+strconv.FormatBool(created))
 	return nil
 }
 
@@ -64,7 +67,7 @@ func TestGetEndpointStubRetrievesNonDeletedSingleton(t *testing.T) {
 		"ApplyPathConstraints",
 		"ApplyDeletedFilter:false",
 		"RetrieveElement",
-		"RenderElement",
+		"RenderElement:false",
 	}
 	if !reflect.DeepEqual(engine.calls, expected) {
 		t.Fatalf("calls = %#v, want %#v", engine.calls, expected)
@@ -84,7 +87,7 @@ func TestSoftDeletedGetEndpointStubRetrievesDeletedSingleton(t *testing.T) {
 		"ApplyPathConstraints",
 		"ApplyDeletedFilter:true",
 		"RetrieveElement",
-		"RenderElement",
+		"RenderElement:false",
 	}
 	if !reflect.DeepEqual(engine.calls, expected) {
 		t.Fatalf("calls = %#v, want %#v", engine.calls, expected)

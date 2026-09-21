@@ -108,7 +108,7 @@ type RetrievesOnlyElement[IDT comparable, RT types.Resource[IDT]] interface {
 // RendersElement allows rendering an element.
 type RendersElement[IDT comparable, RT types.Resource[IDT]] interface {
 	// RenderElement renders to JSON the contents of the element.
-	RenderElement(context echo.Context, elements RT) error
+	RenderElement(context echo.Context, elements RT, created bool) error
 }
 
 // DeletesElement allows deleting an element by id.
