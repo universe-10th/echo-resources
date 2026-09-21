@@ -5,13 +5,14 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/universe-10th/echo-resources/types"
+	echo2 "github.com/universe-10th/echo-resources/utils/echo"
 )
 
 // A ResourceBody is just a wrapper component which performs
 // a body capture. This can be of the same type or of a new,
 // intermediate, type.
 type ResourceBody[IDT comparable, RT types.Resource[IDT]] struct {
-	reader func(func(any) error, echo.Context, *RT) error
+	reader func(echo.Context, *RT) error
 }
 
 // UsingDefaultBody ensures the reader uses a target object
@@ -22,13 +23,14 @@ func (resourceBody *ResourceBody[IDT, RT]) UsingDefaultBody() {
 
 // UsingCustomBody ensures the reader uses a custom function
 // to read the body. This function takes:
-//   - A `binder` helper to be used like: `err := binder(&something)`.
-//     It's a shortcut that guarantees only the request's body is read.
 //   - The context, for other checks (e.g. data from middleware).
 //   - The final element itself. This element must be populated from
 //     any object whose address (&object) is passed to a binder(.) call.
+//
+// Ensure you use utils/echo.Capture[T](context) and then map the result
+// to the appropriate RT type.
 func (resourceBody *ResourceBody[IDT, RT]) UsingCustomBody(
-	reader func(func(any) error, echo.Context, *RT) error,
+	reader func(echo.Context, *RT) error,
 ) {
 	resourceBody.reader = reader
 }
@@ -45,16 +47,13 @@ func (resourceBody *ResourceBody[IDT, RT]) ReadBody(
 	}
 
 	// 2. Then, if no reader is used, bind by default.
-	binder := func(v any) error { return (&echo.DefaultBinder{}).BindBody(context, v) }
 	if resourceBody.reader == nil {
-		if err := binder(element); err != nil {
-			return renderBadRequest(context)
-		}
-		return nil
+		*element, err = echo2.Capture[RT](context)
+		return err
 	}
 
 	// 3. Otherwise, pass the binder to the reader so users do what they please.
-	return resourceBody.reader(binder, context, element)
+	return resourceBody.reader(context, element)
 }
 
 func renderBadRequest(context echo.Context) error {
