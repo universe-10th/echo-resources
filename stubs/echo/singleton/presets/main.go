@@ -8,11 +8,18 @@ import (
 // ReadOnlyResourceServiceEngine is the engine required by ReadOnlyResourceService.
 type ReadOnlyResourceServiceEngine[IDT comparable, RT types.Resource[IDT]] interface {
 	singleton.GetEndpointEngine[IDT, RT]
+	PrefixName() string
 }
 
 // ReadOnlyResourceService is a singleton preset for reading the active resource.
 type ReadOnlyResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	singleton.GetEndpointStub[IDT, RT]
+	engine ReadOnlyResourceServiceEngine[IDT, RT]
+}
+
+// PrefixName returns the route prefix name for this preset.
+func (service ReadOnlyResourceService[IDT, RT]) PrefixName() string {
+	return service.engine.PrefixName()
 }
 
 // NewReadOnlyResourceService creates a singleton preset for reading the active resource.
@@ -20,6 +27,7 @@ func NewReadOnlyResourceService[IDT comparable, RT types.Resource[IDT]](
 	engine ReadOnlyResourceServiceEngine[IDT, RT],
 ) ReadOnlyResourceService[IDT, RT] {
 	return ReadOnlyResourceService[IDT, RT]{
+		engine:          engine,
 		GetEndpointStub: singleton.NewGetEndpointStub[IDT, RT](engine),
 	}
 }

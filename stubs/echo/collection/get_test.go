@@ -71,6 +71,10 @@ type getTestEngine struct {
 	calls []string
 }
 
+func (e *getTestEngine) URLArg() string {
+	return "id"
+}
+
 func (e *getTestEngine) ParseID(context echo.Context) (int, error) {
 	e.calls = append(e.calls, "ParseID")
 	return 42, nil

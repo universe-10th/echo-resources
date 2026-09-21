@@ -16,6 +16,10 @@ type deleteTestEngine struct {
 	deleteErr error
 }
 
+func (e *deleteTestEngine) URLArg() string {
+	return "id"
+}
+
 func (e *deleteTestEngine) ParseID(context echo.Context) (int, error) {
 	e.calls = append(e.calls, "ParseID")
 	return 42, nil

@@ -9,12 +9,19 @@ import (
 type ReadOnlyResourceServiceEngine[IDT comparable, RT types.Resource[IDT]] interface {
 	collection.GetEndpointEngine[IDT, RT]
 	collection.ListEndpointEngine[IDT, RT]
+	PrefixName() string
 }
 
 // ReadOnlyResourceService is a collection preset for reading active resources.
 type ReadOnlyResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	collection.GetEndpointStub[IDT, RT]
 	collection.ListEndpointStub[IDT, RT]
+	engine ReadOnlyResourceServiceEngine[IDT, RT]
+}
+
+// PrefixName returns the route prefix name for this preset.
+func (service ReadOnlyResourceService[IDT, RT]) PrefixName() string {
+	return service.engine.PrefixName()
 }
 
 // NewReadOnlyResourceService creates a collection preset for reading active resources.
@@ -22,6 +29,7 @@ func NewReadOnlyResourceService[IDT comparable, RT types.Resource[IDT]](
 	engine ReadOnlyResourceServiceEngine[IDT, RT],
 ) ReadOnlyResourceService[IDT, RT] {
 	return ReadOnlyResourceService[IDT, RT]{
+		engine:           engine,
 		GetEndpointStub:  collection.NewGetEndpointStub[IDT, RT](engine),
 		ListEndpointStub: collection.NewListEndpointStub[IDT, RT](engine),
 	}

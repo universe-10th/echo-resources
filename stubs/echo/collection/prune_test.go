@@ -16,6 +16,10 @@ type pruneTestEngine struct {
 	pruneErr error
 }
 
+func (e *pruneTestEngine) URLArg() string {
+	return "id"
+}
+
 func (e *pruneTestEngine) ParseID(context echo.Context) (int, error) {
 	e.calls = append(e.calls, "ParseID")
 	return 42, nil

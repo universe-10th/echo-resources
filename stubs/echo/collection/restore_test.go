@@ -16,6 +16,10 @@ type restoreTestEngine struct {
 	restoreErr error
 }
 
+func (e *restoreTestEngine) URLArg() string {
+	return "id"
+}
+
 func (e *restoreTestEngine) ParseID(context echo.Context) (int, error) {
 	e.calls = append(e.calls, "ParseID")
 	return 42, nil

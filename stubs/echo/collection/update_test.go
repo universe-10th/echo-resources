@@ -17,6 +17,10 @@ type updateTestEngine struct {
 	validationErr error
 }
 
+func (e *updateTestEngine) URLArg() string {
+	return "id"
+}
+
 func (e *updateTestEngine) ParseID(context echo.Context) (int, error) {
 	e.calls = append(e.calls, "ParseID")
 	return 42, nil
