@@ -51,7 +51,7 @@ func (createEndpointStub CreateEndpointStub[IDT, RT]) Create(context echo.Contex
 		if errors.As(err, &validationError) {
 			return RenderError(context, validationError)
 		}
-		return RenderError(context, types.BadRequestError{})
+		return RenderError(context, types.ValidationError{})
 	}
 
 	// 4. Save the element.

@@ -67,7 +67,7 @@ func (updateEndpointStub UpdateEndpointStub[IDT, RT]) Update(context echo.Contex
 		if errors.As(err, &validationError) {
 			return RenderError(context, validationError)
 		}
-		return RenderError(context, types.BadRequestError{})
+		return RenderError(context, types.ValidationError{})
 	}
 
 	// 11. Save the new element state.
