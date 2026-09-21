@@ -21,7 +21,6 @@ var ErrInvalidPrefix = errors.New("invalid prefix")
 type ResourceDSL interface {
 	PrefixName() string
 	Middlewares() []echo.MiddlewareFunc
-	FetchMiddleware(deleted bool) echo.MiddlewareFunc
 }
 
 // WithGet is a DSL interface to tell that the resource
@@ -105,7 +104,7 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 	// First, let's tackle the deleted stuff here.
 	if hasWithDeletedGet || hasWithPrune || hasWithRestore || hasWithCustomDeletedRoutes {
 		deletedGroup := g.Group("/"+prefix+"/deleted", dsl.Middlewares()...)
-		deletedElementGroup := deletedGroup.Group("", dsl.FetchMiddleware(true))
+		deletedElementGroup := deletedGroup.Group("")
 
 		if hasWithRestore {
 			deletedElementGroup.POST("", withRestore.Restore)
@@ -136,7 +135,7 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 		return nil, nil
 	}
 
-	elementGroup := group.Group("", dsl.FetchMiddleware(false))
+	elementGroup := group.Group("")
 
 	if hasWithUpdate {
 		elementGroup.PATCH("", withUpdate.Update)

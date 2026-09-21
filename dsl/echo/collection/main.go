@@ -27,7 +27,6 @@ var ErrInvalidURLArg = errors.New("invalid URL arg")
 type ResourceDSL interface {
 	PrefixName() string
 	Middlewares() []echo.MiddlewareFunc
-	FetchMiddleware(deleted bool) echo.MiddlewareFunc
 	URLArg() string
 }
 
@@ -157,7 +156,7 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 		}
 
 		if hasWithDeletedGet || hasWithPrune || hasWithRestore || hasWithCustomElementDeletedRoutes {
-			itemDeletedGroup := collectionDeletedGroup.Group("/:"+urlArg, dsl.FetchMiddleware(true))
+			itemDeletedGroup := collectionDeletedGroup.Group("/:" + urlArg)
 
 			if hasWithRestore {
 				itemDeletedGroup.POST("", withRestore.Restore)
@@ -196,7 +195,7 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 		return nil, nil
 	}
 
-	itemGroup := collectionGroup.Group("/:"+urlArg, dsl.FetchMiddleware(false))
+	itemGroup := collectionGroup.Group("/:" + urlArg)
 
 	if hasWithUpdate {
 		itemGroup.PATCH("", withUpdate.Update)
