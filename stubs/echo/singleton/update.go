@@ -25,6 +25,13 @@ type UpdateEndpointStub[IDT comparable, RT types.Resource[IDT]] struct {
 	engine UpdateEndpointEngine[IDT, RT]
 }
 
+// NewUpdateEndpointStub creates a stub for updating the non-deleted singleton element.
+func NewUpdateEndpointStub[IDT comparable, RT types.Resource[IDT]](
+	engine UpdateEndpointEngine[IDT, RT],
+) UpdateEndpointStub[IDT, RT] {
+	return UpdateEndpointStub[IDT, RT]{engine: engine}
+}
+
 func (updateEndpointStub UpdateEndpointStub[IDT, RT]) Update(context echo.Context) error {
 	engine := updateEndpointStub.engine
 

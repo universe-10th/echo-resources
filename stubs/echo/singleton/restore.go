@@ -22,6 +22,13 @@ type RestoreEndpointStub[IDT comparable, RT types.SoftDeletedResource[IDT]] stru
 	engine RestoreEndpointEngine[IDT, RT]
 }
 
+// NewRestoreEndpointStub creates a stub for restoring the deleted singleton element.
+func NewRestoreEndpointStub[IDT comparable, RT types.SoftDeletedResource[IDT]](
+	engine RestoreEndpointEngine[IDT, RT],
+) RestoreEndpointStub[IDT, RT] {
+	return RestoreEndpointStub[IDT, RT]{engine: engine}
+}
+
 func (restoreEndpointStub RestoreEndpointStub[IDT, RT]) Restore(context echo.Context) error {
 	engine := restoreEndpointStub.engine
 

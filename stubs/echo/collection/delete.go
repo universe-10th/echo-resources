@@ -23,6 +23,13 @@ type DeleteEndpointStub[IDT comparable, RT types.Resource[IDT]] struct {
 	engine DeleteEndpointEngine[IDT, RT]
 }
 
+// NewDeleteEndpointStub creates a stub for deleting non-deleted collection elements.
+func NewDeleteEndpointStub[IDT comparable, RT types.Resource[IDT]](
+	engine DeleteEndpointEngine[IDT, RT],
+) DeleteEndpointStub[IDT, RT] {
+	return DeleteEndpointStub[IDT, RT]{engine: engine}
+}
+
 func (deleteEndpointStub DeleteEndpointStub[IDT, RT]) Delete(context echo.Context) error {
 	engine := deleteEndpointStub.engine
 

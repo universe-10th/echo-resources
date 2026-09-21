@@ -22,6 +22,13 @@ type PruneEndpointStub[IDT comparable, RT types.SoftDeletedResource[IDT]] struct
 	engine PruneEndpointEngine[IDT, RT]
 }
 
+// NewPruneEndpointStub creates a stub for permanently removing the deleted singleton element.
+func NewPruneEndpointStub[IDT comparable, RT types.SoftDeletedResource[IDT]](
+	engine PruneEndpointEngine[IDT, RT],
+) PruneEndpointStub[IDT, RT] {
+	return PruneEndpointStub[IDT, RT]{engine: engine}
+}
+
 func (pruneEndpointStub PruneEndpointStub[IDT, RT]) Prune(context echo.Context) error {
 	engine := pruneEndpointStub.engine
 

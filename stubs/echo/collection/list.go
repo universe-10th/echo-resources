@@ -78,6 +78,13 @@ type ListEndpointStub[IDT comparable, RT types.Resource[IDT]] struct {
 	engine ListEndpointEngine[IDT, RT]
 }
 
+// NewListEndpointStub creates a stub for listing non-deleted collection elements.
+func NewListEndpointStub[IDT comparable, RT types.Resource[IDT]](
+	engine ListEndpointEngine[IDT, RT],
+) ListEndpointStub[IDT, RT] {
+	return ListEndpointStub[IDT, RT]{engine: engine}
+}
+
 func (listEndpointStub ListEndpointStub[IDT, RT]) List(context echo.Context) error {
 	engine := listEndpointStub.engine
 	return list(engine, context, false)
@@ -87,6 +94,13 @@ func (listEndpointStub ListEndpointStub[IDT, RT]) List(context echo.Context) err
 // based on an implementation engine that lists deleted elements.
 type SoftDeletedListEndpointStub[IDT comparable, RT types.SoftDeletedResource[IDT]] struct {
 	engine ListEndpointEngine[IDT, RT]
+}
+
+// NewSoftDeletedListEndpointStub creates a stub for listing deleted collection elements.
+func NewSoftDeletedListEndpointStub[IDT comparable, RT types.SoftDeletedResource[IDT]](
+	engine ListEndpointEngine[IDT, RT],
+) SoftDeletedListEndpointStub[IDT, RT] {
+	return SoftDeletedListEndpointStub[IDT, RT]{engine: engine}
 }
 
 func (softDeletedListEndpointStub SoftDeletedListEndpointStub[IDT, RT]) ListDeleted(context echo.Context) error {

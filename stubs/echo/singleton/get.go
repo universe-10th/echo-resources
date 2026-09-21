@@ -30,6 +30,13 @@ type GetEndpointStub[IDT comparable, RT types.Resource[IDT]] struct {
 	engine GetEndpointEngine[IDT, RT]
 }
 
+// NewGetEndpointStub creates a stub for retrieving the non-deleted singleton element.
+func NewGetEndpointStub[IDT comparable, RT types.Resource[IDT]](
+	engine GetEndpointEngine[IDT, RT],
+) GetEndpointStub[IDT, RT] {
+	return GetEndpointStub[IDT, RT]{engine: engine}
+}
+
 func (getEndpointStub GetEndpointStub[IDT, RT]) Get(context echo.Context) error {
 	engine := getEndpointStub.engine
 	return get(engine, context, false)
@@ -39,6 +46,13 @@ func (getEndpointStub GetEndpointStub[IDT, RT]) Get(context echo.Context) error 
 // based on an implementation engine that retrieves deleted elements.
 type SoftDeletedGetEndpointStub[IDT comparable, RT types.SoftDeletedResource[IDT]] struct {
 	engine GetEndpointEngine[IDT, RT]
+}
+
+// NewSoftDeletedGetEndpointStub creates a stub for retrieving the deleted singleton element.
+func NewSoftDeletedGetEndpointStub[IDT comparable, RT types.SoftDeletedResource[IDT]](
+	engine GetEndpointEngine[IDT, RT],
+) SoftDeletedGetEndpointStub[IDT, RT] {
+	return SoftDeletedGetEndpointStub[IDT, RT]{engine: engine}
 }
 
 func (softDeletedGetEndpointStub SoftDeletedGetEndpointStub[IDT, RT]) GetDeleted(context echo.Context) error {

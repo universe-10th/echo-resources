@@ -24,6 +24,13 @@ type CreateEndpointStub[IDT comparable, RT types.Resource[IDT]] struct {
 	engine CreateEndpointEngine[IDT, RT]
 }
 
+// NewCreateEndpointStub creates a stub for creating the singleton element.
+func NewCreateEndpointStub[IDT comparable, RT types.Resource[IDT]](
+	engine CreateEndpointEngine[IDT, RT],
+) CreateEndpointStub[IDT, RT] {
+	return CreateEndpointStub[IDT, RT]{engine: engine}
+}
+
 func (createEndpointStub CreateEndpointStub[IDT, RT]) Create(context echo.Context) error {
 	engine := createEndpointStub.engine
 	var element RT
