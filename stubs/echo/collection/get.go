@@ -38,6 +38,11 @@ func NewGetEndpointStub[IDT comparable, RT types.Resource[IDT]](
 	return GetEndpointStub[IDT, RT]{engine: engine}
 }
 
+// URLArg returns the value of the URLArg method of the internal engine.
+func (getEndpointStub GetEndpointStub[IDT, RT]) URLArg() string {
+	return getEndpointStub.engine.URLArg()
+}
+
 func (getEndpointStub GetEndpointStub[IDT, RT]) Get(context echo.Context) error {
 	engine := getEndpointStub.engine
 	return get(engine, context, false)

@@ -27,6 +27,12 @@ func NewReadOnlyResourceService[IDT comparable, RT types.Resource[IDT]](
 	}
 }
 
+// URLArg returns the value of the URLArg method of the internal engine this stub
+// was instantiated with.
+func (service ReadOnlyResourceService[IDT, RT]) URLArg() string {
+	return service.GetEndpointStub.URLArg()
+}
+
 // ReadWriteResourceServiceEngine is the engine required by ReadWriteResourceService.
 type ReadWriteResourceServiceEngine[IDT comparable, RT types.Resource[IDT]] interface {
 	ReadOnlyResourceServiceEngine[IDT, RT]
