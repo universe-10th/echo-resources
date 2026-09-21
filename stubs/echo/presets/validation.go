@@ -3,7 +3,7 @@ package presets
 import "github.com/universe-10th/echo-resources/types"
 
 // A ResourceValidator is just a wrapper component which performs a
-// validation
+// validation.
 type ResourceValidator[IDT comparable, RT types.Resource[IDT]] struct {
 	validator func(*RT) error
 }
