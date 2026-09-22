@@ -87,7 +87,7 @@ func (e *singletonCreateTestEngine) ApplyDeletedFilter(filter *types.FilterExpre
 	e.calls = append(e.calls, "ApplyDeletedFilter:false")
 }
 
-func (e *singletonCreateTestEngine) ApplyPathConstraints(context echo.Context, filter *types.FilterExpression) error {
+func (e *singletonCreateTestEngine) ApplyPathConstraintsToFilter(context echo.Context, filter *types.FilterExpression) error {
 	e.calls = append(e.calls, "ApplyPathConstraints")
 	return nil
 }

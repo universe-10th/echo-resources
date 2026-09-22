@@ -25,7 +25,7 @@ func (e *pruneTestEngine) ParseID(context echo.Context) (int, error) {
 	return 42, nil
 }
 
-func (e *pruneTestEngine) ApplyPathConstraints(context echo.Context, filter *types.FilterExpression) error {
+func (e *pruneTestEngine) ApplyPathConstraintsToFilter(context echo.Context, filter *types.FilterExpression) error {
 	e.calls = append(e.calls, "ApplyPathConstraints")
 	return nil
 }

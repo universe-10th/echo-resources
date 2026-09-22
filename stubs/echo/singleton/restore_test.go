@@ -24,7 +24,7 @@ func (e *singletonRestoreTestEngine) ApplyDeletedFilter(filter *types.FilterExpr
 	e.calls = append(e.calls, "ApplyDeletedFilter:false")
 }
 
-func (e *singletonRestoreTestEngine) ApplyPathConstraints(context echo.Context, filter *types.FilterExpression) error {
+func (e *singletonRestoreTestEngine) ApplyPathConstraintsToFilter(context echo.Context, filter *types.FilterExpression) error {
 	e.calls = append(e.calls, "ApplyPathConstraints")
 	return nil
 }

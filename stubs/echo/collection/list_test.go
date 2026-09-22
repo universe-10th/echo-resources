@@ -20,7 +20,7 @@ func (e *listTestEngine) GetAllowedFields() ([]string, Allowance, error) {
 	return []string{"id"}, Only, nil
 }
 
-func (e *listTestEngine) ApplyPathConstraints(context echo.Context, filter *types.FilterExpression) error {
+func (e *listTestEngine) ApplyPathConstraintsToFilter(context echo.Context, filter *types.FilterExpression) error {
 	e.calls = append(e.calls, "ApplyPathConstraints")
 	return nil
 }

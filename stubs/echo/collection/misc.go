@@ -39,7 +39,7 @@ type MayScopeDeletedElements interface {
 // MayScopeConstraints allows determining the constraints for
 // the current request, from the URL and related to its definition.
 type MayScopeConstraints interface {
-	ApplyPathConstraints(context echo.Context, filter *types.FilterExpression) error
+	ApplyPathConstraintsToFilter(context echo.Context, filter *types.FilterExpression) error
 }
 
 // MayApplyElementConstraints allows applying request path constraints directly
@@ -183,7 +183,7 @@ func retrieveScopedElement[IDT comparable, RT types.Resource[IDT]](
 		return zeroID, zeroElement, RenderError(context, types.BadRequestError{})
 	}
 
-	err = engine.ApplyPathConstraints(context, filter)
+	err = engine.ApplyPathConstraintsToFilter(context, filter)
 	if err != nil {
 		return zeroID, zeroElement, RenderError(context, types.BadRequestError{})
 	}

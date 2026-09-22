@@ -51,7 +51,7 @@ func list[IDT comparable, RT types.Resource[IDT]](engine ListEndpointEngine[IDT,
 	}
 
 	// 5. Apply the constraints.
-	err = engine.ApplyPathConstraints(context, filter)
+	err = engine.ApplyPathConstraintsToFilter(context, filter)
 	if err != nil {
 		return RenderError(context, types.BadRequestError{})
 	}
