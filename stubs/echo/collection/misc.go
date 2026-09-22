@@ -2,7 +2,6 @@ package collection
 
 import (
 	"errors"
-	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/universe-10th/echo-resources/types"
@@ -129,15 +128,6 @@ type PrunesElement[IDT comparable] interface {
 // RendersEmpty allows rendering an empty successful response.
 type RendersEmpty interface {
 	RenderEmpty(context echo.Context) error
-}
-
-// PreservesStampsAndConstraints allows preserving fields that must survive
-// the request body patch and then restoring them before saving.
-type PreservesStampsAndConstraints[IDT comparable, RT types.Resource[IDT]] interface {
-	PreserveStampsAndConstraints(context echo.Context, element *RT) (
-		createdAt time.Time, constraints any,
-	)
-	RestoreIDStampsAndConstraints(element *RT, id IDT, createdAt time.Time, constraints any)
 }
 
 // ReadsElementBody allows reading a request body into an element.

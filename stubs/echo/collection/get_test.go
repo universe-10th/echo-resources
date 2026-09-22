@@ -38,6 +38,8 @@ func (r getTestResource) SetCreationTime() {}
 
 func (r getTestResource) SetCreationTimeIn(location *time.Location) {}
 
+func (r getTestResource) RestoreCreationTime(stamp time.Time) {}
+
 func (r getTestResource) SetLastUpdateTime() {}
 
 func (r getTestResource) SetLastUpdateTimeIn(location *time.Location) {}

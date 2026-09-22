@@ -1,36 +1,88 @@
 package presets
 
 import (
-	// "time"
-
 	"github.com/labstack/echo/v4"
-	// "github.com/universe-10th/echo-resources/stubs/echo/collection"
-	// "github.com/universe-10th/echo-resources/types"
+	"github.com/universe-10th/echo-resources/types"
 )
 
-// ResourceURL defines the prefix and the URL argument, and provides
-// a way to retrieve the underlying ID.
-type ResourceURL[IDT comparable] struct {
-	prefixName string
-	urlArg     string
+// DumbReadWriteResourceServiceEngine is a no-op implementation of
+// ReadWriteResourceServiceEngine.
+type DumbReadWriteResourceServiceEngine[IDT comparable, RT types.Resource[IDT]] struct {
+	ResourceFiltering[IDT, RT]
 }
 
-// PrefixName returns the name of the prefix for the current resource's URL.
-func (resourceURL ResourceURL[IDT]) PrefixName() string {
-	return resourceURL.prefixName
+// NewDumbReadWriteResourceServiceEngine creates a no-op read-write resource
+// service engine.
+func NewDumbReadWriteResourceServiceEngine[IDT comparable, RT types.Resource[IDT]]() DumbReadWriteResourceServiceEngine[IDT, RT] {
+	return DumbReadWriteResourceServiceEngine[IDT, RT]{}
 }
 
-// URLArg returns the name of the url/path argument for this resource.
-func (resourceURL ResourceURL[IDT]) URLArg() string {
-	return resourceURL.urlArg
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) ApplyPathConstraintsToFilter(
+	context echo.Context, filter *types.FilterExpression,
+) error {
+	return nil
 }
 
-// ParseID parses the ID of the resource from the url arg at URLArg().
-func (resourceURL ResourceURL[IDT]) ParseID(context echo.Context) (IDT, error) {
-	return echo.PathParam[IDT](context, resourceURL.urlArg)
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) ApplyPathConstraintsToElement(
+	context echo.Context, element *RT,
+) error {
+	return nil
 }
 
-// NewURL creates a new ResourceURL[IDT] instance.
-func NewURL[IDT comparable](prefixName string, urlArg string) ResourceURL[IDT] {
-	return ResourceURL[IDT]{prefixName, urlArg}
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) PageSize() int64 {
+	return 0
+}
+
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) RetrieveList(
+	filter *types.FilterExpression, sort *types.SortExpression, page int64,
+) ([]RT, int64, error) {
+	return nil, 0, nil
+}
+
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) ApplyCustomFilter(
+	context echo.Context, filter *types.FilterExpression,
+) error {
+	return nil
+}
+
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) RetrieveElement(
+	id IDT, filter *types.FilterExpression,
+) (RT, bool, error) {
+	var zero RT
+	return zero, false, nil
+}
+
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) Delete(id IDT) error {
+	return nil
+}
+
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) Restore(id IDT) (RT, error) {
+	var zero RT
+	return zero, nil
+}
+
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) Prune(id IDT) error {
+	return nil
+}
+
+func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) Save(element *RT) error {
+	return nil
+}
+
+// DumbReadWriteSoftDeletedResourceServiceEngine is a no-op implementation of
+// ReadWriteSoftDeletedResourceServiceEngine.
+type DumbReadWriteSoftDeletedResourceServiceEngine[
+	IDT comparable,
+	RT types.SoftDeletedResource[IDT],
+] struct {
+	DumbReadWriteResourceServiceEngine[IDT, RT]
+}
+
+// NewDumbReadWriteSoftDeletedResourceServiceEngine creates a no-op read-write
+// soft-deleted resource service engine.
+func NewDumbReadWriteSoftDeletedResourceServiceEngine[
+	IDT comparable,
+	RT types.SoftDeletedResource[IDT],
+]() DumbReadWriteSoftDeletedResourceServiceEngine[IDT, RT] {
+	return DumbReadWriteSoftDeletedResourceServiceEngine[IDT, RT]{}
 }

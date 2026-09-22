@@ -65,6 +65,8 @@ func (createEndpointStub CreateEndpointStub[IDT, RT]) Create(context echo.Contex
 		return RenderError(context, types.BadRequestError{})
 	}
 
+	element.SetCreationTime()
+
 	err = engine.Validate(&element)
 	if err != nil {
 		var validationError types.ValidationError

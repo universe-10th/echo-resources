@@ -13,7 +13,6 @@ type UpdateEndpointEngine[IDT comparable, RT types.Resource[IDT]] interface {
 	MayScopeConstraints
 	MayScopeDeletedElements
 	RetrievesElementById[IDT, RT]
-	PreservesStampsAndConstraints[IDT, RT]
 	ReadsElementBody[IDT, RT]
 	MayApplyElementConstraints[IDT, RT]
 	ValidatesAndSavesElement[IDT, RT]
@@ -43,7 +42,7 @@ func (updateEndpointStub UpdateEndpointStub[IDT, RT]) Update(context echo.Contex
 	}
 
 	// 6. Preserve the stamps and constraints that must not be overwritten.
-	createdAt, constraints := engine.PreserveStampsAndConstraints(context, &element)
+	createdAt := element.GetCreationTime()
 
 	// 7. Read the request body.
 	err = engine.ReadBody(context, &element)
@@ -51,8 +50,9 @@ func (updateEndpointStub UpdateEndpointStub[IDT, RT]) Update(context echo.Contex
 		return RenderError(context, types.BadRequestError{})
 	}
 
-	// 8. Restore the preserved id, stamps, and constraints.
-	engine.RestoreIDStampsAndConstraints(&element, id, createdAt, constraints)
+	// 8. Restore the preserved id and stamps.
+	element.SetID(id)
+	element.RestoreCreationTime(createdAt)
 
 	// 9. Apply the constraints from the path into the object.
 	err = engine.ApplyPathConstraintsToElement(context, &element)

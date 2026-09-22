@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/universe-10th/echo-resources/types"
@@ -42,24 +41,10 @@ func (e *singletonUpdateTestEngine) RetrieveElement(
 	return singletonTestResource{id: 42}, true, nil
 }
 
-func (e *singletonUpdateTestEngine) PreserveStampsAndConstraints(
-	context echo.Context, element *singletonTestResource,
-) (time.Time, any) {
-	e.calls = append(e.calls, "PreserveStampsAndConstraints:"+strconv.Itoa(element.id))
-	return time.Time{}, element.id
-}
-
 func (e *singletonUpdateTestEngine) ReadBody(context echo.Context, element *singletonTestResource) error {
 	e.calls = append(e.calls, "ReadBody")
 	element.id = 100
 	return nil
-}
-
-func (e *singletonUpdateTestEngine) RestoreIDStampsAndConstraints(
-	element *singletonTestResource, id int, createdAt time.Time, constraints any,
-) {
-	e.calls = append(e.calls, "RestoreIDStampsAndConstraints")
-	element.id = id
 }
 
 func (e *singletonUpdateTestEngine) ApplyPathConstraintsToElement(
@@ -108,10 +93,8 @@ func TestUpdateEndpointStubFollowsExpectedOrder(t *testing.T) {
 		"ApplyPathConstraints",
 		"ApplyDeletedFilter:false",
 		"RetrieveElement",
-		"PreserveStampsAndConstraints:42",
 		"ReadBody",
-		"RestoreIDStampsAndConstraints",
-		"ApplyPathConstraintsToElement:42",
+		"ApplyPathConstraintsToElement:100",
 		"Validate:84",
 		"Save:84",
 		"RenderElement:84:false",
@@ -141,10 +124,8 @@ func TestUpdateEndpointStubValidationErrorReturnsInvalid(t *testing.T) {
 		"ApplyPathConstraints",
 		"ApplyDeletedFilter:false",
 		"RetrieveElement",
-		"PreserveStampsAndConstraints:42",
 		"ReadBody",
-		"RestoreIDStampsAndConstraints",
-		"ApplyPathConstraintsToElement:42",
+		"ApplyPathConstraintsToElement:100",
 		"Validate:84",
 	}
 	if !reflect.DeepEqual(engine.calls, expected) {

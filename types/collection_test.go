@@ -16,12 +16,36 @@ func (r collectionTestResource) GetID() string {
 	return r.id
 }
 
+func (r collectionTestResource) SetID(id string) {}
+
+func (r collectionTestResource) GetIDField() string {
+	return "id"
+}
+
 func (r collectionTestResource) GetCreationTime() time.Time {
 	return r.createdAt
 }
 
 func (r collectionTestResource) GetLastUpdateTime() time.Time {
 	return r.updatedAt
+}
+
+func (r collectionTestResource) SetCreationTime() {}
+
+func (r collectionTestResource) SetCreationTimeIn(location *time.Location) {}
+
+func (r collectionTestResource) RestoreCreationTime(stamp time.Time) {}
+
+func (r collectionTestResource) SetLastUpdateTime() {}
+
+func (r collectionTestResource) SetLastUpdateTimeIn(location *time.Location) {}
+
+func (r collectionTestResource) GetCreationTimeField() string {
+	return "created_at"
+}
+
+func (r collectionTestResource) GetLastUpdateTimeField() string {
+	return "updated_at"
 }
 
 func (r collectionTestResource) GetDeletionTime() *time.Time {
@@ -32,9 +56,19 @@ func (r collectionTestResource) IsDeleted() bool {
 	return r.deletedAt != nil
 }
 
+func (r collectionTestResource) SetDeletionTime() {}
+
+func (r collectionTestResource) SetDeletionTimeIn(location *time.Location) {}
+
+func (r collectionTestResource) UnsetDeletionTime() {}
+
+func (r collectionTestResource) GetDeletionTimeField() string {
+	return "deleted_at"
+}
+
 type collectionTestStore struct{}
 
-func (collectionTestStore) Get(id string) (collectionTestResource, bool, error) {
+func (collectionTestStore) Get(id string, filter FilterExpression) (collectionTestResource, bool, error) {
 	return collectionTestResource{id: id}, true, nil
 }
 
@@ -42,7 +76,11 @@ func (collectionTestStore) List(options ListOptions) ([]collectionTestResource, 
 	return []collectionTestResource{}, nil
 }
 
-func (collectionTestStore) GetDeleted(id string) (collectionTestResource, bool, error) {
+func (collectionTestStore) Count(options FilterExpression) (int64, error) {
+	return 0, nil
+}
+
+func (collectionTestStore) GetDeleted(id string, filter FilterExpression) (collectionTestResource, bool, error) {
 	now := time.Now()
 	return collectionTestResource{id: id, deletedAt: &now}, true, nil
 }
@@ -51,31 +89,35 @@ func (collectionTestStore) ListDeleted(options ListOptions) ([]collectionTestRes
 	return []collectionTestResource{}, nil
 }
 
-func (collectionTestStore) Delete(id string) (bool, error) {
+func (collectionTestStore) CountDeleted(options FilterExpression) (int64, error) {
+	return 0, nil
+}
+
+func (collectionTestStore) Delete(id string, filter FilterExpression) (bool, error) {
 	return true, nil
 }
 
-func (collectionTestStore) DeleteMany(ids []string) (int, error) {
+func (collectionTestStore) DeleteMany(ids []string, filter FilterExpression) (int, error) {
 	return len(ids), nil
 }
 
-func (collectionTestStore) Prune(id string) (bool, error) {
+func (collectionTestStore) Prune(id string, filter FilterExpression) (bool, error) {
 	return true, nil
 }
 
-func (collectionTestStore) PruneMany(ids []string) (int, error) {
+func (collectionTestStore) PruneMany(ids []string, filter FilterExpression) (int, error) {
 	return len(ids), nil
 }
 
-func (collectionTestStore) Restore(id string) (bool, error) {
+func (collectionTestStore) Restore(id string, filter FilterExpression) (bool, error) {
 	return true, nil
 }
 
-func (collectionTestStore) RestoreMany(ids []string) (int, error) {
+func (collectionTestStore) RestoreMany(ids []string, filter FilterExpression) (int, error) {
 	return len(ids), nil
 }
 
-func (collectionTestStore) UpdateOne(id string, values map[string]any) (bool, error) {
+func (collectionTestStore) UpdateOne(id string, filter FilterExpression, values map[string]any) (bool, error) {
 	return true, nil
 }
 
@@ -98,7 +140,7 @@ func TestCollectionInterfaces(t *testing.T) {
 		_ Resource[string]                                          = collectionTestResource{}
 		_ Identified[string]                                        = collectionTestResource{}
 		_ interface {
-			Get(id string) (collectionTestResource, bool, error)
+			Get(id string, filter FilterExpression) (collectionTestResource, bool, error)
 		} = collectionTestStore{}
 	)
 }

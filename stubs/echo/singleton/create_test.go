@@ -37,6 +37,8 @@ func (r singletonTestResource) GetLastUpdateTime() time.Time {
 
 func (r singletonTestResource) SetCreationTime() {}
 
+func (r singletonTestResource) RestoreCreationTime(time.Time) {}
+
 func (r singletonTestResource) SetCreationTimeIn(location *time.Location) {}
 
 func (r singletonTestResource) SetLastUpdateTime() {}

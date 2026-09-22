@@ -44,7 +44,10 @@ func (createEndpointStub CreateEndpointStub[IDT, RT]) Create(context echo.Contex
 		return RenderError(context, types.BadRequestError{})
 	}
 
-	// 3. Validate the constrained request body.
+	// 3. Set the creation time to the current timestamp.
+	element.SetCreationTime()
+
+	// 4. Validate the constrained request body.
 	err = engine.Validate(&element)
 	if err != nil {
 		var validationError types.ValidationError
@@ -54,7 +57,7 @@ func (createEndpointStub CreateEndpointStub[IDT, RT]) Create(context echo.Contex
 		return RenderError(context, types.ValidationError{})
 	}
 
-	// 4. Save the element.
+	// 5. Save the element.
 	err = engine.Save(&element)
 	if err != nil {
 		var err_ types.Error
@@ -64,6 +67,6 @@ func (createEndpointStub CreateEndpointStub[IDT, RT]) Create(context echo.Contex
 		return RenderError(context, types.InternalError{})
 	}
 
-	// 5. Render the final element.
+	// 6. Render the final element.
 	return engine.RenderElement(context, element, true)
 }

@@ -12,7 +12,6 @@ type UpdateEndpointEngine[IDT comparable, RT types.Resource[IDT]] interface {
 	MayScopeConstraints
 	MayScopeDeletedElements
 	RetrievesElement[IDT, RT]
-	PreservesStampsAndConstraints[IDT, RT]
 	ReadsElementBody[IDT, RT]
 	MayApplyElementConstraints[IDT, RT]
 	ValidatesAndSavesElement[IDT, RT]
@@ -41,14 +40,15 @@ func (updateEndpointStub UpdateEndpointStub[IDT, RT]) Update(context echo.Contex
 	}
 
 	id := element.GetID()
-	createdAt, constraints := engine.PreserveStampsAndConstraints(context, &element)
+	createdAt := element.GetCreationTime()
 
 	err = engine.ReadBody(context, &element)
 	if err != nil {
 		return RenderError(context, types.BadRequestError{})
 	}
 
-	engine.RestoreIDStampsAndConstraints(&element, id, createdAt, constraints)
+	element.SetID(id)
+	element.RestoreCreationTime(createdAt)
 
 	err = engine.ApplyPathConstraintsToElement(context, &element)
 	if err != nil {

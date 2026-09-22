@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/universe-10th/echo-resources/types"
@@ -49,13 +48,6 @@ func (e *updateTestEngine) RetrieveElement(id int, filter *types.FilterExpressio
 	return getTestResource{id: id}, true, nil
 }
 
-func (e *updateTestEngine) PreserveStampsAndConstraints(
-	context echo.Context, element *getTestResource,
-) (time.Time, any) {
-	e.calls = append(e.calls, "PreserveStampsAndConstraints:"+strconv.Itoa(element.id))
-	return time.Time{}, element.id
-}
-
 func (e *updateTestEngine) ReadBody(context echo.Context, element *getTestResource) error {
 	e.calls = append(e.calls, "ReadBody")
 	element.id = 100
@@ -65,13 +57,6 @@ func (e *updateTestEngine) ReadBody(context echo.Context, element *getTestResour
 func (e *updateTestEngine) Validate(element *getTestResource) error {
 	e.calls = append(e.calls, "Validate:"+strconv.Itoa(element.id))
 	return e.validationErr
-}
-
-func (e *updateTestEngine) RestoreIDStampsAndConstraints(
-	element *getTestResource, id int, createdAt time.Time, constraints any,
-) {
-	e.calls = append(e.calls, "RestoreIDStampsAndConstraints")
-	element.id = id
 }
 
 func (e *updateTestEngine) ApplyPathConstraintsToElement(context echo.Context, element *getTestResource) error {
@@ -112,10 +97,8 @@ func TestUpdateEndpointStubFollowsExpectedOrder(t *testing.T) {
 		"ApplyPathConstraints",
 		"ApplyDeletedFilter:false",
 		"RetrieveElement",
-		"PreserveStampsAndConstraints:42",
 		"ReadBody",
-		"RestoreIDStampsAndConstraints",
-		"ApplyPathConstraintsToElement:42",
+		"ApplyPathConstraintsToElement:100",
 		"Validate:84",
 		"Save:84",
 		"RenderElement:84:false",
@@ -146,10 +129,8 @@ func TestUpdateEndpointStubValidationErrorReturnsInvalid(t *testing.T) {
 		"ApplyPathConstraints",
 		"ApplyDeletedFilter:false",
 		"RetrieveElement",
-		"PreserveStampsAndConstraints:42",
 		"ReadBody",
-		"RestoreIDStampsAndConstraints",
-		"ApplyPathConstraintsToElement:42",
+		"ApplyPathConstraintsToElement:100",
 		"Validate:84",
 	}
 	if !reflect.DeepEqual(engine.calls, expected) {
