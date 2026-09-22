@@ -55,10 +55,6 @@ func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) ReadBody(
 	return nil
 }
 
-func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) Validate(element *RT) error {
-	return nil
-}
-
 func (engine DumbReadWriteResourceServiceEngine[IDT, RT]) Save(element *RT) error {
 	return nil
 }
