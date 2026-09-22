@@ -35,6 +35,9 @@ type Timestamps interface {
 	// timezone (a null pointer must be coalesced to UTC).
 	SetCreationTimeIn(location *time.Location)
 
+	// RestoreCreationTime sets the creation time to a specific stamp.
+	RestoreCreationTime(stamp time.Time)
+
 	// SetLastUpdateTime sets the last update time of a resource. Implementors must
 	// use the current time, expressed in UTC.
 	SetLastUpdateTime()

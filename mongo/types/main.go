@@ -55,6 +55,11 @@ func (r *Resource) SetCreationTimeIn(location *time.Location) {
 	r.CreatedAt = time.Now().In(location)
 }
 
+// RestoreCreationTime sets the creation time to a specific value.
+func (r *Resource) RestoreCreationTime(time time.Time) {
+	r.CreatedAt = time
+}
+
 // SetLastUpdateTime sets the last update time in UTC.
 func (r *Resource) SetLastUpdateTime() {
 	r.SetLastUpdateTimeIn(time.UTC)
