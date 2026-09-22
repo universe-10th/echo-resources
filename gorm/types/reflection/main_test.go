@@ -17,6 +17,18 @@ type fieldToStorageModel struct {
 	Count   int
 }
 
+type fieldToStorageOwner struct {
+	ID int
+}
+
+type fieldToStorageBelongsTo struct {
+	ID         int
+	OwnerID    int `gorm:"column:account_id"`
+	Owner      fieldToStorageOwner
+	Reviewer   fieldToStorageOwner `gorm:"foreignKey:ReviewerID;references:ID"`
+	ReviewerID int                 `gorm:"column:reviewer_account_id"`
+}
+
 func TestFieldToStorageUsesGORMColumnsAndSnakeCase(t *testing.T) {
 	t.Parallel()
 
@@ -44,6 +56,21 @@ func TestFieldToStorageAcceptsNilPointers(t *testing.T) {
 		"CreatedAt": "created_at",
 		"Name":      "product_name",
 		"Count":     "count",
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected mapping\nwant: %#v\n got: %#v", want, got)
+	}
+}
+
+func TestFieldToStorageUsesGORMForeignKeyColumnsWithoutMappingAssociations(t *testing.T) {
+	t.Parallel()
+
+	got := FieldToStorage(fieldToStorageBelongsTo{})
+	want := map[string]string{
+		"ID":         "id",
+		"OwnerID":    "account_id",
+		"ReviewerID": "reviewer_account_id",
 	}
 
 	if !reflect.DeepEqual(got, want) {
