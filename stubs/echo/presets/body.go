@@ -15,6 +15,12 @@ type ResourceBody[IDT comparable, RT types.Resource[IDT]] struct {
 	reader func(echo.Context, *RT) error
 }
 
+// NewResourceBody creates a resource body reader component using the default
+// body capture behavior.
+func NewResourceBody[IDT comparable, RT types.Resource[IDT]]() ResourceBody[IDT, RT] {
+	return ResourceBody[IDT, RT]{}
+}
+
 // UsingDefaultBody ensures the reader uses a target object
 // of the exact same type, with no modification at all.
 func (resourceBody *ResourceBody[IDT, RT]) UsingDefaultBody() {

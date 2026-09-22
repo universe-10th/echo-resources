@@ -5,6 +5,12 @@ import "github.com/universe-10th/echo-resources/types"
 // ApplyingDeleteFilter applies the standard soft-delete filter constraint.
 type ApplyingDeleteFilter[IDT comparable, RT types.SoftDeletedResource[IDT]] struct{}
 
+// NewApplyingDeleteFilter creates a component that applies the standard
+// soft-delete filter constraint.
+func NewApplyingDeleteFilter[IDT comparable, RT types.SoftDeletedResource[IDT]]() ApplyingDeleteFilter[IDT, RT] {
+	return ApplyingDeleteFilter[IDT, RT]{}
+}
+
 // ApplyDeletedFilter adds a deletion-state criterion to filter.
 //
 // The criterion targets the resource's deletion timestamp field. For active

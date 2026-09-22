@@ -11,6 +11,12 @@ type ResourceValidator[IDT comparable, RT types.Resource[IDT]] struct {
 	validator func(*RT) error
 }
 
+// NewResourceValidator creates a resource validator component using the
+// default go-validator based validation behavior.
+func NewResourceValidator[IDT comparable, RT types.Resource[IDT]]() ResourceValidator[IDT, RT] {
+	return ResourceValidator[IDT, RT]{}
+}
+
 // UsingDefaultValidator updates the validator to use. If none is set,
 // a default validation will be used instead, via go-validator.
 func (resourceValidator *ResourceValidator[IDT, RT]) UsingDefaultValidator() {

@@ -21,6 +21,12 @@ type ResourceRendering[IDT comparable, RT types.Resource[IDT]] struct {
 	listRenderer    ListRendererFunc
 }
 
+// NewResourceRendering creates a rendering component using the default JSON
+// renderers.
+func NewResourceRendering[IDT comparable, RT types.Resource[IDT]]() ResourceRendering[IDT, RT] {
+	return ResourceRendering[IDT, RT]{}
+}
+
 // UsingDefaultRendering resets this component to the default JSON renderers.
 func (resourceRendering *ResourceRendering[IDT, RT]) UsingDefaultRendering() {
 	resourceRendering.elementRenderer = nil
