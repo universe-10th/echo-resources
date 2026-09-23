@@ -6,19 +6,18 @@ import (
 	"time"
 
 	resourcetypes "github.com/universe-10th/echo-resources/types"
-	resourcereflection "github.com/universe-10th/echo-resources/types/reflection"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // FilterSource derives MongoDB filter validation and serialization from a field mapping.
 type FilterSource struct {
-	mapping    *resourcereflection.FieldsMapping
+	mapping    *resourcetypes.FieldsMapping
 	serializer FilterSerializer
 	validator  FilterValidator
 }
 
 // NewFilterSource returns a FilterSource for the supplied MongoDB field mapping.
-func NewFilterSource(mapping *resourcereflection.FieldsMapping) FilterSource {
+func NewFilterSource(mapping *resourcetypes.FieldsMapping) FilterSource {
 	return FilterSource{
 		mapping:    mapping,
 		serializer: NewFilterSerializer(mapping),
@@ -38,17 +37,17 @@ func (s FilterSource) Validator() resourcetypes.FilterValidator {
 
 // FilterValidator validates filter fields and values against a MongoDB field mapping.
 type FilterValidator struct {
-	mapping *resourcereflection.FieldsMapping
+	mapping *resourcetypes.FieldsMapping
 }
 
 // NewFilterValidator returns a validator for the supplied MongoDB field mapping.
-func NewFilterValidator(mapping *resourcereflection.FieldsMapping) FilterValidator {
+func NewFilterValidator(mapping *resourcetypes.FieldsMapping) FilterValidator {
 	return FilterValidator{mapping: mapping}
 }
 
 // IsValidCmpFilter reports whether filter is a known field and value fits its Go type.
 func (v FilterValidator) IsValidCmpFilter(filter string, value any) bool {
-	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
+	field, ok := resourcetypes.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -58,7 +57,7 @@ func (v FilterValidator) IsValidCmpFilter(filter string, value any) bool {
 
 // IsNullCheckable reports whether filter can be checked for null.
 func (v FilterValidator) IsNullCheckable(filter string) bool {
-	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
+	field, ok := resourcetypes.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -68,12 +67,12 @@ func (v FilterValidator) IsNullCheckable(filter string) bool {
 
 // IsExistenceCheckable reports whether filter can be checked for existence.
 func (v FilterValidator) IsExistenceCheckable(filter string) bool {
-	return resourcereflection.FieldForJSON(v.mapping, filter) != ""
+	return resourcetypes.FieldForJSON(v.mapping, filter) != ""
 }
 
 // IsContainsCheckable reports whether filter is a string field.
 func (v FilterValidator) IsContainsCheckable(filter string) bool {
-	field, ok := resourcereflection.StructFieldForJSON(v.mapping, filter)
+	field, ok := resourcetypes.StructFieldForJSON(v.mapping, filter)
 	if !ok {
 		return false
 	}
@@ -83,11 +82,11 @@ func (v FilterValidator) IsContainsCheckable(filter string) bool {
 
 // FilterSerializer serializes parsed filters into MongoDB BSON filters.
 type FilterSerializer struct {
-	mapping *resourcereflection.FieldsMapping
+	mapping *resourcetypes.FieldsMapping
 }
 
 // NewFilterSerializer returns a serializer for the supplied MongoDB field mapping.
-func NewFilterSerializer(mapping *resourcereflection.FieldsMapping) FilterSerializer {
+func NewFilterSerializer(mapping *resourcetypes.FieldsMapping) FilterSerializer {
 	return FilterSerializer{mapping: mapping}
 }
 
@@ -106,7 +105,7 @@ func (s FilterSerializer) Serialize(filter resourcetypes.FilterExpression) bson.
 		return bson.M{"$nor": bson.A{s.Serialize(filter.Expressions[0])}}
 	case resourcetypes.FilterLT, resourcetypes.FilterLTE, resourcetypes.FilterGT,
 		resourcetypes.FilterGTE, resourcetypes.FilterEQ, resourcetypes.FilterNE:
-		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		storageName := resourcetypes.StorageForJSON(s.mapping, filter.Field)
 		if storageName == "" {
 			return bson.M{}
 		}
@@ -121,7 +120,7 @@ func (s FilterSerializer) Serialize(filter resourcetypes.FilterExpression) bson.
 
 		return bson.M{storageName: bson.M{operator: filter.Value}}
 	case resourcetypes.FilterNull:
-		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		storageName := resourcetypes.StorageForJSON(s.mapping, filter.Field)
 		if storageName == "" {
 			return bson.M{}
 		}
@@ -132,7 +131,7 @@ func (s FilterSerializer) Serialize(filter resourcetypes.FilterExpression) bson.
 
 		return bson.M{storageName: bson.M{"$ne": nil}}
 	case resourcetypes.FilterExists:
-		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		storageName := resourcetypes.StorageForJSON(s.mapping, filter.Field)
 		if storageName == "" {
 			return bson.M{}
 		}
@@ -140,7 +139,7 @@ func (s FilterSerializer) Serialize(filter resourcetypes.FilterExpression) bson.
 		value, _ := filter.Value.(bool)
 		return bson.M{storageName: bson.M{"$exists": value}}
 	case resourcetypes.FilterContains:
-		storageName := resourcereflection.StorageForJSON(s.mapping, filter.Field)
+		storageName := resourcetypes.StorageForJSON(s.mapping, filter.Field)
 		if storageName == "" {
 			return bson.M{}
 		}
@@ -190,7 +189,7 @@ func acceptsValue(valueType reflect.Type, value any) bool {
 		return err == nil
 	}
 
-	return resourcereflection.AcceptsScalarValue(valueType, value)
+	return resourcetypes.AcceptsScalarValue(valueType, value)
 }
 
 func isNullable(valueType reflect.Type) bool {

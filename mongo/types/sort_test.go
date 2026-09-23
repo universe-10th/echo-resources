@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"testing"
 
-	mongoreflection "github.com/universe-10th/echo-resources/mongo/types/reflection"
 	resourcetypes "github.com/universe-10th/echo-resources/types"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -12,7 +11,7 @@ import (
 func TestSortSourceProvidesSerializerAndValidator(t *testing.T) {
 	t.Parallel()
 
-	source := NewSortSource(mongoreflection.NewFieldsMapping[bson.ObjectID, *filterProduct]())
+	source := NewSortSource(NewFieldsMapping[bson.ObjectID, *filterProduct]())
 
 	if !source.Validator().IsSortable("price", resourcetypes.Asc) {
 		t.Fatal("expected source validator to allow scalar field")
@@ -32,7 +31,7 @@ func TestSortSourceProvidesSerializerAndValidator(t *testing.T) {
 func TestSortValidatorUsesDocumentFields(t *testing.T) {
 	t.Parallel()
 
-	validator := NewSortValidator(mongoreflection.NewFieldsMapping[bson.ObjectID, *filterProduct]())
+	validator := NewSortValidator(NewFieldsMapping[bson.ObjectID, *filterProduct]())
 
 	if !validator.IsSortable("created_at", resourcetypes.Asc) {
 		t.Fatal("expected embedded timestamp field to be sortable")
@@ -51,7 +50,7 @@ func TestSortValidatorUsesDocumentFields(t *testing.T) {
 func TestSortSerializerProducesBSONSort(t *testing.T) {
 	t.Parallel()
 
-	serializer := NewSortSerializer(mongoreflection.NewFieldsMapping[bson.ObjectID, *filterProduct]())
+	serializer := NewSortSerializer(NewFieldsMapping[bson.ObjectID, *filterProduct]())
 
 	got := serializer.Serialize(resourcetypes.SortExpression{
 		Sort: []resourcetypes.Sort{
@@ -72,7 +71,7 @@ func TestSortSerializerProducesBSONSort(t *testing.T) {
 func TestSortSerializerReturnsEmptyBSONSortForInvalidSort(t *testing.T) {
 	t.Parallel()
 
-	serializer := NewSortSerializer(mongoreflection.NewFieldsMapping[bson.ObjectID, *filterProduct]())
+	serializer := NewSortSerializer(NewFieldsMapping[bson.ObjectID, *filterProduct]())
 
 	got := serializer.Serialize(resourcetypes.SortExpression{
 		Sort: []resourcetypes.Sort{

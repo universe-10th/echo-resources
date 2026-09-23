@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"testing"
 
-	mongoreflection "github.com/universe-10th/echo-resources/mongo/types/reflection"
 	resourcetypes "github.com/universe-10th/echo-resources/types"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -19,7 +18,7 @@ type filterProduct struct {
 func TestFilterValidatorUsesDocumentFields(t *testing.T) {
 	t.Parallel()
 
-	mapping := mongoreflection.NewFieldsMapping[bson.ObjectID, *filterProduct]()
+	mapping := NewFieldsMapping[bson.ObjectID, *filterProduct]()
 	validator := NewFilterValidator(mapping)
 
 	if mapping.ResourceType() != reflect.TypeOf(filterProduct{}) {
@@ -55,7 +54,7 @@ func TestFilterValidatorUsesDocumentFields(t *testing.T) {
 func TestFilterSerializerProducesBSONPredicate(t *testing.T) {
 	t.Parallel()
 
-	serializer := NewFilterSerializer(mongoreflection.NewFieldsMapping[bson.ObjectID, *filterProduct]())
+	serializer := NewFilterSerializer(NewFieldsMapping[bson.ObjectID, *filterProduct]())
 
 	got := serializer.Serialize(resourcetypes.FilterExpression{
 		Operator: resourcetypes.FilterAnd,
