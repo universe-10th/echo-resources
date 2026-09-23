@@ -1,10 +1,8 @@
-package reflection
+package types
 
 import (
 	"reflect"
 	"strings"
-
-	"github.com/universe-10th/echo-resources/types"
 )
 
 // MappingFunc stands for a function that, given an argument,
@@ -226,7 +224,7 @@ func AcceptsScalarValue(valueType reflect.Type, value any) bool {
 
 // NewFieldsMapping creates a FieldsMapping instance from a generic resource
 // type and a custom mapping function (intended per-storage-engine).
-func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]](customFieldToStorage MappingFunc) *FieldsMapping {
+func NewFieldsMapping[IDT comparable, RT Resource[IDT]](customFieldToStorage MappingFunc) *FieldsMapping {
 	var value RT
 	jsonToField := JSONToField(value)
 	fieldToJson := map[string]string{}
