@@ -1,11 +1,10 @@
-package reflection
+package types
 
 import (
 	"reflect"
 	"sync"
 
 	"github.com/universe-10th/echo-resources/types"
-	"github.com/universe-10th/echo-resources/types/reflection"
 	"gorm.io/gorm/schema"
 )
 
@@ -44,6 +43,6 @@ func indirectType(valueType reflect.Type) reflect.Type {
 
 // NewFieldsMapping creates a FieldsMapping instance from a generic resource
 // type and a custom mapping function (intended for GORM).
-func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]]() *reflection.FieldsMapping {
-	return reflection.NewFieldsMapping[IDT, RT](FieldToStorage)
+func NewFieldsMapping[IDT comparable, RT types.Resource[IDT]]() *types.FieldsMapping {
+	return types.NewFieldsMapping[IDT, RT](FieldToStorage)
 }
