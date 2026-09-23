@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	common "github.com/universe-10th/echo-resources/dsl/echo"
+	"github.com/universe-10th/echo-resources/utils"
 )
 
 var _prefix = regexp.MustCompile("^[a-zA-Z0-9]+([-_][a-zA-Z0-9]+)*$")
@@ -120,8 +121,8 @@ type WithCustomElementDeletedRoutes interface {
 // of the appropriate format.
 func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error) {
 	prefix := dsl.PrefixName()
-	if ok := _prefix.MatchString(prefix); !ok {
-		return nil, ErrInvalidPrefix
+	if err := utils.CheckPrefix(prefix); err != nil {
+		return nil, err
 	}
 
 	urlArg := dsl.URLArg()
