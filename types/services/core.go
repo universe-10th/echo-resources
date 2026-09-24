@@ -47,6 +47,11 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// or is it a collection.
 	singleton bool
 
+	// The urlArg is only used in collection resources to tell
+	// the name of the capture parameter in the path for the
+	// current resource.
+	urlArg string
+
 	// The verbs field tells which verbs will be considered for
 	// the resource.
 	verbs ResourceVerbs
@@ -87,6 +92,18 @@ func (service ResourceService[IDT, RT]) Prefix() string {
 // Storage returns the underlying storage for this resource.
 func (service ResourceService[IDT, RT]) Storage() types.Storage[IDT, RT] {
 	return service.storage
+}
+
+// IsSingleton tells whether the current resource is singleton
+// or not (i.e. is a resource).
+func (service ResourceService[IDT, RT]) IsSingleton() bool {
+	return service.singleton
+}
+
+// URLArg tells the name of the argument used to capture the
+// id of the current element.
+func (service ResourceService[IDT, RT]) URLArg() string {
+	return service.urlArg
 }
 
 // Here is where the configuration starts.
