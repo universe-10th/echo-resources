@@ -61,6 +61,12 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// the per-user allowed fields. If not set, all the fields will
 	// be allowed.
 	allowedFields AllowedFieldsFunc
+
+	// The validator function tells what's the criterion to perform
+	// the validation of a body. By default, it uses go-validate.
+	// Typically, this is not used unless RT has very complex
+	// validation requirements.
+	validator ValidatorFunc[IDT, RT]
 }
 
 // Prefix returns the prefix used to register this service.
@@ -145,4 +151,15 @@ func (service *ResourceService[IDT, RT]) UsingAllowedFields(allowedFields Allowe
 // per-user allowed fields.
 func (service *ResourceService[IDT, RT]) AllowedFields() AllowedFieldsFunc {
 	return service.allowedFields
+}
+
+// UsingValidator sets what's the validator to use for RT.
+func (service *ResourceService[IDT, RT]) UsingValidator(validator ValidatorFunc[IDT, RT]) *ResourceService[IDT, RT] {
+	service.validator = validator
+	return service
+}
+
+// Validator returns the validator being used.
+func (service *ResourceService[IDT, RT]) Validator() ValidatorFunc[IDT, RT] {
+	return service.validator
 }
