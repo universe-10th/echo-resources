@@ -74,3 +74,18 @@ func TestFilterSerializerProducesBSONPredicate(t *testing.T) {
 		t.Fatalf("unexpected BSON predicate\nwant: %#v\n got: %#v", want, got)
 	}
 }
+
+func TestFilterSerializerProducesNonePredicate(t *testing.T) {
+	t.Parallel()
+
+	serializer := NewFilterSerializer(NewFieldsMapping[bson.ObjectID, *filterProduct]())
+
+	got := serializer.Serialize(resourcetypes.FilterExpression{
+		Operator: resourcetypes.FilterNone,
+	})
+	want := bson.M{"$expr": false}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected BSON predicate\nwant: %#v\n got: %#v", want, got)
+	}
+}

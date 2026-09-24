@@ -72,3 +72,18 @@ func TestFilterSerializerProducesSQLPredicate(t *testing.T) {
 		t.Fatalf("unexpected SQL predicate\nwant: %s\n got: %s", want, got)
 	}
 }
+
+func TestFilterSerializerProducesNonePredicate(t *testing.T) {
+	t.Parallel()
+
+	serializer := NewFilterSerializer(NewFieldsMapping[int, *filterProduct]())
+
+	got := serializer.Serialize(resourcetypes.FilterExpression{
+		Operator: resourcetypes.FilterNone,
+	})
+	want := "1 = 0"
+
+	if got != want {
+		t.Fatalf("unexpected SQL predicate\nwant: %s\n got: %s", want, got)
+	}
+}

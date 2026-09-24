@@ -93,6 +93,8 @@ func NewFilterSerializer(mapping *resourcetypes.FieldsMapping) FilterSerializer 
 // Serialize serializes filter into a bson.M predicate.
 func (s FilterSerializer) Serialize(filter resourcetypes.FilterExpression) bson.M {
 	switch filter.Operator {
+	case resourcetypes.FilterNone:
+		return bson.M{"$expr": false}
 	case resourcetypes.FilterAnd:
 		return s.serializeLogical("$and", filter.Expressions)
 	case resourcetypes.FilterOr:

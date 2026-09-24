@@ -96,6 +96,8 @@ func NewFilterSerializer(mapping *resourcetypes.FieldsMapping) FilterSerializer 
 // Serialize serializes filter into a SQL predicate string.
 func (s FilterSerializer) Serialize(filter resourcetypes.FilterExpression) string {
 	switch filter.Operator {
+	case resourcetypes.FilterNone:
+		return "1 = 0"
 	case resourcetypes.FilterAnd:
 		return s.serializeLogical("AND", filter.Expressions)
 	case resourcetypes.FilterOr:
