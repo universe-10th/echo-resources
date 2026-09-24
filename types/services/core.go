@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/universe-10th/echo-resources/types"
@@ -27,6 +28,7 @@ var (
 		ResourceGet, ResourceGetDeleted,
 		ResourceCreate, ResourceUpdate, ResourceDelete, ResourceRestore, ResourcePrune,
 	)
+	defaultPageSize int64 = 10
 )
 
 // ResourceService describes a service that relates to elements
@@ -53,6 +55,10 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// no extra filter is applied.
 	filter FilterFunc
 
+	// The pageSize field tells how many elements will be rendered
+	// when listing elements. By default, 10 element will be used.
+	pageSize int64
+
 	// The defaultSort function tells which one is the default sort
 	// criterion for the data.
 	defaultSort DefaultSortFunc
@@ -67,6 +73,10 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// Typically, this is not used unless RT has very complex
 	// validation requirements.
 	validator ValidatorFunc[IDT, RT]
+
+	// The middlewares field tells the middlewares to use for all
+	// the endpoints.
+	middlewares []MiddlewareFunc
 }
 
 // Prefix returns the prefix used to register this service.
@@ -162,4 +172,30 @@ func (service *ResourceService[IDT, RT]) UsingValidator(validator ValidatorFunc[
 // Validator returns the validator being used.
 func (service *ResourceService[IDT, RT]) Validator() ValidatorFunc[IDT, RT] {
 	return service.validator
+}
+
+// UsingPageSize sets the amount of elements being listed per page.
+func (service *ResourceService[IDT, RT]) UsingPageSize(pageSize int64) *ResourceService[IDT, RT] {
+	if pageSize <= 0 {
+		logger.Warn(fmt.Sprintf("invalid page size - changing to %d", defaultPageSize))
+		pageSize = defaultPageSize
+	}
+
+	if service.singleton {
+		logger.Warn(
+			"page size is not used in singleton resources",
+			"prefix", service.prefix,
+		)
+	}
+
+	service.pageSize = pageSize
+	return service
+}
+
+// PageSize returns the amount of elements being listed per page.
+func (service ResourceService[IDT, RT]) PageSize() int64 {
+	if service.pageSize == 0 {
+		return defaultPageSize
+	}
+	return service.pageSize
 }
