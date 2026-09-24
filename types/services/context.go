@@ -103,9 +103,9 @@ type Context interface {
 	// RenderNoContent renders a response status without a body.
 	RenderNoContent(status int) error
 
-	// CurrentResource tells which resource is the one attending
+	// CurrentService tells which resource is the one attending
 	// the request. Useful for custom logic endpoints.
-	CurrentResource() any
+	CurrentService() any
 
 	// CurrentEndpoint tells which is the current endpoint being
 	// accessed. The first argument tells the type of endpoint.
