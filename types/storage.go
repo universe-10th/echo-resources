@@ -20,7 +20,7 @@ type Storage[IDT comparable, RT Resource[IDT]] interface {
 		sort *SortExpression,
 		skip int64,
 		limit int64,
-	)
+	) (elements []RT, total int64, err error)
 
 	// Save creates or updates an element. If the ID is not set
 	// (i.e. it is zero-value), a new element will be created.
