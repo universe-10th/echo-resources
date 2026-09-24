@@ -50,6 +50,10 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// The filter field keeps a custom filter applier. By default,
 	// no extra filter is applied.
 	filter FilterFunc
+
+	// The defaultSort function tells which one is the default sort
+	// criterion for the data.
+	defaultSort DefaultSortFunc
 }
 
 // Prefix returns the prefix used to register this service.
@@ -65,8 +69,9 @@ func (service ResourceService[IDT, RT]) Storage() types.Storage[IDT, RT] {
 // Here is where the configuration starts.
 
 // UsingVerbs sets the verbs to enable for this resource.
-func (service *ResourceService[IDT, RT]) UsingVerbs(verbs ...ResourceVerb) {
+func (service *ResourceService[IDT, RT]) UsingVerbs(verbs ...ResourceVerb) *ResourceService[IDT, RT] {
 	service.verbs = ResourceVerbs(utils.NewFlags[ResourceVerb](verbs...))
+	return service
 }
 
 // Verbs returns the flag of verbs to use. Children classes
@@ -87,4 +92,28 @@ func (service ResourceService[IDT, RT]) Verbs() ResourceVerbs {
 		return defaultCollectionResourceVerbs
 	}
 	return service.verbs
+}
+
+// UsingFilter sets the filter to use for data retrieval.
+func (service *ResourceService[IDT, RT]) UsingFilter(filter FilterFunc) *ResourceService[IDT, RT] {
+	service.filter = filter
+	return service
+}
+
+// Filter returns the filter to use for the data retrieval.
+func (service ResourceService[IDT, RT]) Filter() FilterFunc {
+	return service.filter
+}
+
+// UsingDefaultSort sets what's the sort criterion when no
+// sort is specified.
+func (service *ResourceService[IDT, RT]) UsingDefaultSort(defaultSort DefaultSortFunc) *ResourceService[IDT, RT] {
+	service.defaultSort = defaultSort
+	return service
+}
+
+// DefaultSort returns the default sort function (the function
+// that tells which sort to apply when it's not specified).
+func (service ResourceService[IDT, RT]) DefaultSort() DefaultSortFunc {
+	return service.defaultSort
 }
