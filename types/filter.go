@@ -21,7 +21,8 @@ import (
  *          a string might actually represent a time.Time value if the involved field
  *          is a time.Time field.
  *
- * Filter : {"$and": []Filter}
+ * Filter : {"$none": true} <--- top-level only, matches no elements
+ *        | {"$and": []Filter}
  *        | {"$or": []Filter}
  *        | {"$not": Filter}
  *        | {field: {cmp: value}} <--- comparing a field to a value
@@ -92,6 +93,9 @@ type FilterSource[Query any] interface {
 type FilterOperator string
 
 const (
+	// FilterNone matches no elements. It is accepted only as a top-level filter.
+	FilterNone FilterOperator = operatorNone
+
 	// FilterAnd joins all child expressions with logical AND.
 	FilterAnd FilterOperator = operatorAnd
 
@@ -131,9 +135,10 @@ const (
 
 // FilterExpression is the database-neutral DSL produced by FilterParser.
 //
-// For logical operators, Expressions contains the nested filters. FilterNot always
-// contains exactly one nested expression. For field operators, Field contains the
-// camel-cased field name and Value contains the JSON-decoded comparison/check value.
+// FilterNone has no field, value, or nested expressions. For logical operators,
+// Expressions contains the nested filters. FilterNot always contains exactly one
+// nested expression. For field operators, Field contains the camel-cased field name
+// and Value contains the JSON-decoded comparison/check value.
 type FilterExpression struct {
 	Operator    FilterOperator
 	Field       string
@@ -175,10 +180,10 @@ func (p FilterParser) Parse(decoder *json.Decoder) (FilterExpression, error) {
 		return FilterExpression{}, fmt.Errorf("decode filter: %w", err)
 	}
 
-	return p.parseFilter(raw)
+	return p.parseFilter(raw, true)
 }
 
-func (p FilterParser) parseFilter(raw any) (FilterExpression, error) {
+func (p FilterParser) parseFilter(raw any, allowNone bool) (FilterExpression, error) {
 	object, ok := raw.(map[string]any)
 	if !ok {
 		return FilterExpression{}, fmt.Errorf("filter must be an object, got %T", raw)
@@ -190,6 +195,8 @@ func (p FilterParser) parseFilter(raw any) (FilterExpression, error) {
 
 	for key, value := range object {
 		switch key {
+		case operatorNone:
+			return p.parseNone(value, allowNone)
 		case operatorAnd, operatorOr:
 			return p.parseLogicalList(key, value)
 		case operatorNot:
@@ -200,6 +207,19 @@ func (p FilterParser) parseFilter(raw any) (FilterExpression, error) {
 	}
 
 	return FilterExpression{}, errors.New("filter object is empty")
+}
+
+func (p FilterParser) parseNone(raw any, allowNone bool) (FilterExpression, error) {
+	if !allowNone {
+		return FilterExpression{}, fmt.Errorf("%s filter is only allowed at the top level", operatorNone)
+	}
+
+	value, ok := raw.(bool)
+	if !ok || !value {
+		return FilterExpression{}, fmt.Errorf("%s filter must be true", operatorNone)
+	}
+
+	return FilterExpression{Operator: FilterNone}, nil
 }
 
 func (p FilterParser) parseLogicalList(operator string, raw any) (FilterExpression, error) {
@@ -214,7 +234,7 @@ func (p FilterParser) parseLogicalList(operator string, raw any) (FilterExpressi
 
 	expressions := make([]FilterExpression, 0, len(values))
 	for index, value := range values {
-		filter, err := p.parseFilter(value)
+		filter, err := p.parseFilter(value, false)
 		if err != nil {
 			return FilterExpression{}, fmt.Errorf("%s filter item %d: %w", operator, index, err)
 		}
@@ -226,7 +246,7 @@ func (p FilterParser) parseLogicalList(operator string, raw any) (FilterExpressi
 }
 
 func (p FilterParser) parseLogicalNot(raw any) (FilterExpression, error) {
-	filter, err := p.parseFilter(raw)
+	filter, err := p.parseFilter(raw, false)
 	if err != nil {
 		return FilterExpression{}, fmt.Errorf("%s filter: %w", operatorNot, err)
 	}
@@ -311,6 +331,7 @@ func isComparisonOperator(operator string) bool {
 }
 
 const (
+	operatorNone     = "$none"
 	operatorAnd      = "$and"
 	operatorOr       = "$or"
 	operatorNot      = "$not"

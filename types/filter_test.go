@@ -48,6 +48,15 @@ func TestFilterParserParsesComparisonFilter(t *testing.T) {
 	assertFilterExpression(t, filter, want)
 }
 
+func TestFilterParserParsesNoneFilter(t *testing.T) {
+	t.Parallel()
+
+	filter := parseFilterForTest(t, `{"$none":true}`)
+
+	want := FilterExpression{Operator: FilterNone}
+	assertFilterExpression(t, filter, want)
+}
+
 func TestFilterParserParsesLogicalFilter(t *testing.T) {
 	t.Parallel()
 
@@ -93,6 +102,10 @@ func TestFilterParserRejectsInvalidFilters(t *testing.T) {
 	}{
 		{name: "non object", input: `"age"`},
 		{name: "multiple root clauses", input: `{"age":{"$eq":1},"name":{"$eq":"Ada"}}`},
+		{name: "none false", input: `{"$none":false}`},
+		{name: "none non bool", input: `{"$none":"true"}`},
+		{name: "nested none in and", input: `{"$and":[{"$none":true}]}`},
+		{name: "nested none in not", input: `{"$not":{"$none":true}}`},
 		{name: "empty and", input: `{"$and":[]}`},
 		{name: "not list", input: `{"$and":{"age":{"$eq":1}}}`},
 		{name: "invalid field", input: `{"$age":{"$eq":1}}`},
