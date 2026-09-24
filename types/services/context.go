@@ -113,6 +113,10 @@ type Context interface {
 	// is EndpointVerb). The third argument tells which name of
 	// the custom endpoint is used (if the type is not EndpointVerb).
 	CurrentEndpoint() (EndpointType, ResourceVerb, string)
+
+	// Setup configured the context with all the required data:
+	// resource, type of endpoint, verb and name (when required).
+	Setup(resource any, endpointType EndpointType, verb ResourceVerb, name string)
 }
 
 // PathParamType defines the available types for the params
