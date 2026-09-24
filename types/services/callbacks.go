@@ -22,12 +22,12 @@ const (
 // be extended by whatever a function of this type does.
 type FilterFunc func(Context, *types.FilterExpression)
 
-// AllowingFieldsFunc is a callback telling which fields
+// AllowedFieldsFunc is a callback telling which fields
 // the current context (user) is allowed to field by or
 // to sort by.
 //
 // The returned list contains JSON names of allowed fields.
-type AllowingFieldsFunc func(Context) ([]string, Allowance)
+type AllowedFieldsFunc func(Context) ([]string, Allowance)
 
 // DefaultSortFunc is a callback telling which fields will
 // be used by default when the user does not specify any

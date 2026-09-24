@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log/slog"
 
 	"github.com/universe-10th/echo-resources/types"
 	"github.com/universe-10th/echo-resources/utils"
@@ -9,6 +10,7 @@ import (
 
 var (
 	ErrInvalidStorage              = errors.New("invalid storage")
+	logger                         = slog.Default()
 	defaultCollectionResourceVerbs = NewResourceVerbs(
 		ResourceGet, ResourceList,
 		ResourceCreate, ResourceUpdate, ResourceDelete,
@@ -54,6 +56,11 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// The defaultSort function tells which one is the default sort
 	// criterion for the data.
 	defaultSort DefaultSortFunc
+
+	// The allowedFields function tells the function that determines
+	// the per-user allowed fields. If not set, all the fields will
+	// be allowed.
+	allowedFields AllowedFieldsFunc
 }
 
 // Prefix returns the prefix used to register this service.
@@ -108,7 +115,15 @@ func (service ResourceService[IDT, RT]) Filter() FilterFunc {
 // UsingDefaultSort sets what's the sort criterion when no
 // sort is specified.
 func (service *ResourceService[IDT, RT]) UsingDefaultSort(defaultSort DefaultSortFunc) *ResourceService[IDT, RT] {
-	service.defaultSort = defaultSort
+	if service.singleton && defaultSort != nil {
+		logger.Warn(
+			"default sort is not used in singleton resources",
+			"prefix", service.prefix,
+		)
+	} else {
+		service.defaultSort = defaultSort
+	}
+
 	return service
 }
 
@@ -116,4 +131,18 @@ func (service *ResourceService[IDT, RT]) UsingDefaultSort(defaultSort DefaultSor
 // that tells which sort to apply when it's not specified).
 func (service ResourceService[IDT, RT]) DefaultSort() DefaultSortFunc {
 	return service.defaultSort
+}
+
+// UsingAllowedFields sets what's the criterion to select the
+// allowed fields for a query. By default, all the valid fields
+// are allowed (for filter and sort).
+func (service *ResourceService[IDT, RT]) UsingAllowedFields(allowedFields AllowedFieldsFunc) *ResourceService[IDT, RT] {
+	service.allowedFields = allowedFields
+	return service
+}
+
+// AllowedFields returns the function that tells what are the
+// per-user allowed fields.
+func (service *ResourceService[IDT, RT]) AllowedFields() AllowedFieldsFunc {
+	return service.allowedFields
 }
