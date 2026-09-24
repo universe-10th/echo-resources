@@ -55,13 +55,8 @@ type Storage[IDT comparable, RT Resource[IDT]] interface {
 	// the current filter, and the new filter, added together in
 	// a new top-level $and criterion.
 	AddIDFilter(filter *FilterExpression, id IDT)
-}
 
-// SoftDeletedStorage is a Storage that, also, considers the possibility
-// of deleting the elements logically and queries for deleted elements,
-// along with the possibility of restoring or pruning deleted elements.
-type SoftDeletedStorage[IDT comparable, RT SoftDeletedResource[IDT]] interface {
-	Storage[IDT, RT]
+	// The following ones apply to soft-deleted elements.
 
 	// Restore undeleted a deleted element. If the element does not
 	// exist or is not logically deleted, returns a not-found error.
@@ -77,5 +72,8 @@ type SoftDeletedStorage[IDT comparable, RT SoftDeletedResource[IDT]] interface {
 	// criterion, if such criterion is top-level, or creates a new
 	// filter with the current filter, and the new filter, added
 	// together in a new top-level $and criterion.
+	//
+	// If the resource is not soft-deleted, using deleted=false is
+	// a noop, and using deleted=true results in an empty filter.
 	AddDeletedFilter(filter *FilterExpression, deleted bool)
 }
