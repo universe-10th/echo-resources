@@ -32,10 +32,9 @@ type AllowingFieldsFunc func(Context) ([]string, Allowance)
 // DefaultSortFunc is a callback telling which fields will
 // be used by default when the user does not specify any
 // sort at all. The returned list contains JSON names for
-// the fields that will be used for sorting, perhaps with
-// a prefix of "-" (a single minus sign) if the criterion
-// is DESC instead of ASC.
-type DefaultSortFunc func(Context) []string
+// the fields that will be used for sorting. Also, a flag
+// telling whether it's ascending or descending.
+type DefaultSortFunc func(Context) types.SortExpression
 
 // ElementRendererFunc is a function that tells how an element
 // is rendered. This function is type-aware, taking the element
