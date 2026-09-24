@@ -96,6 +96,23 @@ func (e ForbiddenError) Code() ErrorCode {
 	return ErrForbidden
 }
 
+// InvalidIDError stands for when a parsed id is invalid.
+type InvalidIDError struct {
+	ElementName string `json:"element_name"`
+	Key         string `json:"key"`
+}
+
+// Error implements the error interface in InvalidIDError.
+func (e InvalidIDError) Error() string {
+	return "element not found"
+}
+
+// Code implements the error code for the Error interface in NotFoundError,
+// returning InvalidIDError.
+func (e InvalidIDError) Code() ErrorCode {
+	return ErrNotFound
+}
+
 // NotFoundError stands for when an element does not exist.
 type NotFoundError[IDT comparable] struct {
 	ElementName string `json:"element_name"`
@@ -238,6 +255,7 @@ var (
 	_ Error = UnauthorizedError{}
 	_ Error = ForbiddenError{}
 	_ Error = NotFoundError[string]{}
+	_ Error = InvalidIDError{}
 	_ Error = NotDeletedError{}
 	_ Error = NotAcceptableError{}
 	_ Error = AlreadyUsedError{
