@@ -97,6 +97,22 @@ type Context interface {
 	// used by middleware functions.
 	SetData(name string, value any)
 
+	// PushElement pushes an element in the context stack.
+	// By convention, the element should always be a pointer
+	// to a resource.
+	PushElement(resource any)
+
+	// PopElement pops an element from the context stack.
+	// By convention, the element should always be a pointer
+	// to a resource. The second argument will be false if
+	// there are no elements to pop.
+	PopElement() (any, bool)
+
+	// PeekElement peeks the last element, without popping it,
+	// from the context stack. By convention, the element should
+	// always be a pointer to a resource.
+	PeekElement() any
+
 	// RenderJSON renders body as a JSON response with status.
 	RenderJSON(status int, body any) error
 
