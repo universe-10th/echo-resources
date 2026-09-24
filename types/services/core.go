@@ -52,6 +52,11 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// current resource.
 	urlArg string
 
+	// The constraintDBField is used when the resource is child of
+	// another resource: it's the JSON name of a field to look up,
+	// as part of the current filter lookup.
+	constraintDBField string
+
 	// The verbs field tells which verbs will be considered for
 	// the resource.
 	verbs ResourceVerbs
@@ -250,6 +255,28 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 	// Then, add the per-context filter.
 	if service.filter != nil {
 		service.filter(context, &filter)
+	}
+
+	// Then, add a constraint, if any.
+	if service.constraintDBField != "" {
+		lastRaw, exists := context.PopElement()
+		if !exists {
+			logger.Error("unbalanced context stack operation (PopElement without previous matching PushElement)")
+			return nil, types.InternalError{}
+		}
+
+		last, ok := lastRaw.(*RT)
+		if !ok {
+			logger.Error("PopElement retrieved a invalid element (possible PushElement/PopElement imbalance)")
+			return nil, types.InternalError{}
+		}
+
+		filter.Restrict(&types.FilterExpression{
+			Operator:    types.FilterEQ,
+			Field:       service.constraintDBField,
+			Value:       (*last).GetID(),
+			Expressions: nil,
+		})
 	}
 
 	// Then, add the per-deleted filter.
