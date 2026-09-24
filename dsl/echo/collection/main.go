@@ -119,7 +119,7 @@ type WithCustomElementDeletedRoutes interface {
 // Register tries to register a DSL entry for a collection
 // resource. It returns an error if the prefix name is not
 // of the appropriate format.
-func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error) {
+func Register(g common.HierarchyLevel, dsl ResourceDSL) (child *echo.Group, err error) {
 	prefix := dsl.PrefixName()
 	if err := utils.CheckPrefix(prefix); err != nil {
 		return nil, err
@@ -216,7 +216,7 @@ func Register(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group, err error
 
 // MustRegister Registers a DSL entry for a collection resource.
 // It panics on error.
-func MustRegister(g common.EchoLevel, dsl ResourceDSL) (child *echo.Group) {
+func MustRegister(g common.HierarchyLevel, dsl ResourceDSL) (child *echo.Group) {
 	if child, err := Register(g, dsl); err != nil {
 		panic(err)
 	} else {
