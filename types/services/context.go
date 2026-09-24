@@ -82,6 +82,10 @@ type Context interface {
 
 	// RenderNoContent renders a response status without a body.
 	RenderNoContent(status int) error
+
+	// CurrentResource tells which resource is the one attending
+	// the request. Useful for custom logic endpoints.
+	CurrentResource() any
 }
 
 // PathParamType defines the available types for the params
