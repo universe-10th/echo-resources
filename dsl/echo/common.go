@@ -12,6 +12,24 @@ var (
 	ErrInvalidStorage = errors.New("invalid storage")
 )
 
+// ResourceVerb tells the verbs supported by the resource.
+type ResourceVerb uint16
+
+const (
+	ResourceGet ResourceVerb = iota
+	ResourceList
+	ResourceCreate
+	ResourceUpdate
+	ResourceDelete
+	ResourceGetDeleted
+	ResourceListDeleted
+	ResourceRestore
+	ResourcePrune
+)
+
+// ResourceVerbs is a small set of ResourceVerb values.
+type ResourceVerbs utils.Flags[ResourceVerb]
+
 // HierarchyLevel is an interface capable of defining children
 // groups. Stands for a group or the Echo main object.
 type HierarchyLevel interface {
@@ -24,6 +42,10 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// The storage field keeps the internal engine used to store
 	// and retrieve elements.
 	storage types.Storage[IDT, RT]
+
+	// The verbs field tells which verbs will be considered for
+	// the resource.
+	verbs ResourceVerbs
 
 	// The prefix is the name to use for the URL chunk for the
 	// resource service in particular. Something like /foo/:id
@@ -39,6 +61,18 @@ func (service ResourceService[IDT, RT]) Prefix() string {
 // Storage returns the underlying storage for this resource.
 func (service ResourceService[IDT, RT]) Storage() types.Storage[IDT, RT] {
 	return service.storage
+}
+
+// UsingVerbs sets the verbs to enable for this resource.
+func (service *ResourceService[IDT, RT]) UsingVerbs(verbs ...ResourceVerb) {
+	service.verbs = ResourceVerbs(utils.NewFlags[ResourceVerb](verbs...))
+}
+
+// Verbs returns the flag of verbs to use. Children classes
+// MUST override this behavior if the verbs set here are none,
+// so they use the default (full) set for the resource.
+func (service ResourceService[IDT, RT]) Verbs() ResourceVerbs {
+	return service.verbs
 }
 
 // CreateResourceService tries creating an instance of base service
