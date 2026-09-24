@@ -8,6 +8,10 @@ import (
 // CookieSameSite describes the SameSite policy for a response cookie.
 type CookieSameSite uint8
 
+// EndpointType describes what kind of endpoint is being registered.
+// Either standard (verb), collection action, or element action.
+type EndpointType uint8
+
 const (
 	// CookieSameSiteDefault leaves SameSite unspecified.
 	CookieSameSiteDefault CookieSameSite = iota
@@ -20,6 +24,22 @@ const (
 
 	// CookieSameSiteNone maps to the common None SameSite policy.
 	CookieSameSiteNone
+)
+
+const (
+	// EndpointVerb means a standard implemented endpoint for one
+	// of the available verbs.
+	EndpointVerb EndpointType = iota
+
+	// EndpointCollectionExtra means an endpoint with collection-wide
+	// logic. It does not, actually, impose restrictions other than the
+	// fact that the resource is referenced.
+	EndpointCollectionExtra
+
+	// EndpointElementExtra means an endpoint with element-wide logic.
+	// The restriction here is that an element must be found for this
+	// logic to be accessible. It's
+	EndpointElementExtra
 )
 
 // Cookie is a portable cookie representation that can be mapped to common Go
@@ -86,6 +106,13 @@ type Context interface {
 	// CurrentResource tells which resource is the one attending
 	// the request. Useful for custom logic endpoints.
 	CurrentResource() any
+
+	// CurrentEndpoint tells which is the current endpoint being
+	// accessed. The first argument tells the type of endpoint.
+	// The second argument tells which standard verb (if the type
+	// is EndpointVerb). The third argument tells which name of
+	// the custom endpoint is used (if the type is not EndpointVerb).
+	CurrentEndpoint() (EndpointType, ResourceVerb, string)
 }
 
 // PathParamType defines the available types for the params
