@@ -3,14 +3,13 @@ package types
 import (
 	"testing"
 
-	gormreflection "github.com/universe-10th/echo-resources/gorm/types/reflection"
 	resourcetypes "github.com/universe-10th/echo-resources/types"
 )
 
 func TestSortSourceProvidesSerializerAndValidator(t *testing.T) {
 	t.Parallel()
 
-	source := NewSortSource(gormreflection.NewFieldsMapping[int, *filterProduct]())
+	source := NewSortSource(NewFieldsMapping[int, *filterProduct]())
 
 	if !source.Validator().IsSortable("price", resourcetypes.Asc) {
 		t.Fatal("expected source validator to allow scalar field")
@@ -30,7 +29,7 @@ func TestSortSourceProvidesSerializerAndValidator(t *testing.T) {
 func TestSortValidatorUsesModelFields(t *testing.T) {
 	t.Parallel()
 
-	validator := NewSortValidator(gormreflection.NewFieldsMapping[int, *filterProduct]())
+	validator := NewSortValidator(NewFieldsMapping[int, *filterProduct]())
 
 	if !validator.IsSortable("created_at", resourcetypes.Asc) {
 		t.Fatal("expected embedded timestamp field to be sortable")
@@ -52,7 +51,7 @@ func TestSortValidatorUsesModelFields(t *testing.T) {
 func TestSortSerializerProducesSQLOrderFragment(t *testing.T) {
 	t.Parallel()
 
-	serializer := NewSortSerializer(gormreflection.NewFieldsMapping[int, *filterProduct]())
+	serializer := NewSortSerializer(NewFieldsMapping[int, *filterProduct]())
 
 	got := serializer.Serialize(resourcetypes.SortExpression{
 		Sort: []resourcetypes.Sort{
@@ -70,7 +69,7 @@ func TestSortSerializerProducesSQLOrderFragment(t *testing.T) {
 func TestSortSerializerReturnsEmptySQLOrderFragmentForInvalidSort(t *testing.T) {
 	t.Parallel()
 
-	serializer := NewSortSerializer(gormreflection.NewFieldsMapping[int, *filterProduct]())
+	serializer := NewSortSerializer(NewFieldsMapping[int, *filterProduct]())
 
 	got := serializer.Serialize(resourcetypes.SortExpression{
 		Sort: []resourcetypes.Sort{

@@ -7,19 +7,18 @@ import (
 
 	"github.com/google/uuid"
 	resourcetypes "github.com/universe-10th/echo-resources/types"
-	resourcereflection "github.com/universe-10th/echo-resources/types/reflection"
 	"gorm.io/gorm"
 )
 
 // SortSource derives GORM sort validation and serialization from a field mapping.
 type SortSource struct {
-	mapping    *resourcereflection.FieldsMapping
+	mapping    *resourcetypes.FieldsMapping
 	serializer SortSerializer
 	validator  SortValidator
 }
 
 // NewSortSource returns a SortSource for the supplied GORM field mapping.
-func NewSortSource(mapping *resourcereflection.FieldsMapping) SortSource {
+func NewSortSource(mapping *resourcetypes.FieldsMapping) SortSource {
 	return SortSource{
 		mapping:    mapping,
 		serializer: NewSortSerializer(mapping),
@@ -39,11 +38,11 @@ func (s SortSource) Validator() resourcetypes.SortValidator {
 
 // SortSerializer serializes parsed sorts into GORM SQL order fragments.
 type SortSerializer struct {
-	mapping *resourcereflection.FieldsMapping
+	mapping *resourcetypes.FieldsMapping
 }
 
 // NewSortSerializer returns a serializer for the supplied GORM field mapping.
-func NewSortSerializer(mapping *resourcereflection.FieldsMapping) SortSerializer {
+func NewSortSerializer(mapping *resourcetypes.FieldsMapping) SortSerializer {
 	return SortSerializer{mapping: mapping}
 }
 
@@ -55,7 +54,7 @@ func (s SortSerializer) Serialize(sort resourcetypes.SortExpression) string {
 
 	parts := make([]string, 0, len(sort.Sort))
 	for _, item := range sort.Sort {
-		storageName := resourcereflection.StorageForJSON(s.mapping, item.Field)
+		storageName := resourcetypes.StorageForJSON(s.mapping, item.Field)
 		if storageName == "" {
 			return ""
 		}
@@ -73,11 +72,11 @@ func (s SortSerializer) Serialize(sort resourcetypes.SortExpression) string {
 
 // SortValidator validates sort fields against a GORM field mapping.
 type SortValidator struct {
-	mapping *resourcereflection.FieldsMapping
+	mapping *resourcetypes.FieldsMapping
 }
 
 // NewSortValidator returns a sort validator for the supplied GORM field mapping.
-func NewSortValidator(mapping *resourcereflection.FieldsMapping) SortValidator {
+func NewSortValidator(mapping *resourcetypes.FieldsMapping) SortValidator {
 	return SortValidator{mapping: mapping}
 }
 
@@ -87,7 +86,7 @@ func (v SortValidator) IsSortable(field string, orderType resourcetypes.OrderTyp
 		return false
 	}
 
-	structField, ok := resourcereflection.StructFieldForJSON(v.mapping, field)
+	structField, ok := resourcetypes.StructFieldForJSON(v.mapping, field)
 	if !ok {
 		return false
 	}
