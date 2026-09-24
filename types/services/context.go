@@ -119,17 +119,9 @@ type Context interface {
 	Setup(resource any, endpointType EndpointType, verb ResourceVerb, name string)
 }
 
-// PathParamType defines the available types for the params
-// that can occur in the path.
-type PathParamType interface {
-	~string |
-		~int8 | ~int16 | ~int32 | ~int64 | ~int |
-		~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uint
-}
-
 // ParsePathParam parses a path parameter string into one of the supported path
 // parameter scalar types.
-func ParsePathParam[T PathParamType](v string) (T, error) {
+func ParsePathParam[T comparable](v string) (T, error) {
 	var zero T
 	valueType := reflect.TypeOf(zero)
 
