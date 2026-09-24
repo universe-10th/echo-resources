@@ -69,6 +69,14 @@ type Context interface {
 	// SetCookie adds a response cookie.
 	SetCookie(cookie Cookie)
 
+	// GetData retrieves arbitrary data for this context,
+	// typically stored by middleware functions.
+	GetData(name string) (any, bool)
+
+	// SetData sets arbitrary data for this context. Typically
+	// used by middleware functions.
+	SetData(name string, value any)
+
 	// RenderJSON renders body as a JSON response with status.
 	RenderJSON(status int, body any) error
 
