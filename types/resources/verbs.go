@@ -1,13 +1,7 @@
 package resources
 
 import (
-	"errors"
-
 	"github.com/universe-10th/echo-resources/utils"
-)
-
-var (
-	ErrInvalidStorage = errors.New("invalid storage")
 )
 
 // ResourceVerb tells the verbs supported by the resource.

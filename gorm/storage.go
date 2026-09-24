@@ -134,7 +134,7 @@ func (s *Storage[IDT, RT]) ValidateSort(sort *types.SortExpression) error {
 }
 
 func (s *Storage[IDT, RT]) AddIDFilter(filter *types.FilterExpression, id IDT) {
-	s.addFilter(filter, types.FilterExpression{
+	filter.Restrict(&types.FilterExpression{
 		Operator: types.FilterEQ,
 		Field:    s.idJSONField(),
 		Value:    id,
@@ -184,12 +184,12 @@ func (s *Storage[IDT, RT]) AddDeletedFilter(filter *types.FilterExpression, dele
 	softDeleted, ok := any(resource).(types.SoftDeletedResource[IDT])
 	if !ok {
 		if deleted {
-			s.addFilter(filter, types.FilterExpression{Operator: types.FilterNone})
+			filter.Restrict(&types.FilterExpression{Operator: types.FilterNone})
 		}
 		return
 	}
 
-	s.addFilter(filter, types.FilterExpression{
+	filter.Restrict(&types.FilterExpression{
 		Operator: types.FilterNull,
 		Field:    softDeleted.GetDeletionTimeField(),
 		Value:    !deleted,
@@ -230,25 +230,6 @@ func (s *Storage[IDT, RT]) getByID(id IDT, deleted bool) (RT, bool, error) {
 	}
 
 	return element, true, nil
-}
-
-func (s *Storage[IDT, RT]) addFilter(filter *types.FilterExpression, added types.FilterExpression) {
-	if filter == nil {
-		return
-	}
-	if filter.Operator == "" {
-		*filter = added
-		return
-	}
-	if filter.Operator == types.FilterAnd {
-		filter.Expressions = append(filter.Expressions, added)
-		return
-	}
-
-	*filter = types.FilterExpression{
-		Operator:    types.FilterAnd,
-		Expressions: []types.FilterExpression{*filter, added},
-	}
 }
 
 func (s *Storage[IDT, RT]) idJSONField() string {

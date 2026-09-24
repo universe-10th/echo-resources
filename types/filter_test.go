@@ -181,6 +181,105 @@ func TestFilterSerializerInterface(t *testing.T) {
 	var _ FilterSerializer[string] = filterTestSerializer{}
 }
 
+func TestFilterExpressionRestrict(t *testing.T) {
+	t.Parallel()
+
+	age := FilterExpression{Operator: FilterGTE, Field: "age", Value: 21}
+	name := FilterExpression{Operator: FilterContains, Field: "name", Value: "ada"}
+	archived := FilterExpression{Operator: FilterExists, Field: "archived", Value: false}
+	deleted := FilterExpression{Operator: FilterNull, Field: "deleted_at", Value: true}
+
+	tests := []struct {
+		name        string
+		current     FilterExpression
+		restriction *FilterExpression
+		want        FilterExpression
+	}{
+		{
+			name:        "current none remains none",
+			current:     FilterExpression{Operator: FilterNone},
+			restriction: &age,
+			want:        FilterExpression{Operator: FilterNone},
+		},
+		{
+			name:        "restriction none overwrites current",
+			current:     age,
+			restriction: &FilterExpression{Operator: FilterNone, Field: "ignored", Value: true},
+			want:        FilterExpression{Operator: FilterNone},
+		},
+		{
+			name: "and restriction merges into current and",
+			current: FilterExpression{
+				Operator:    FilterAnd,
+				Expressions: []FilterExpression{age},
+			},
+			restriction: &FilterExpression{
+				Operator:    FilterAnd,
+				Expressions: []FilterExpression{name, archived},
+			},
+			want: FilterExpression{
+				Operator:    FilterAnd,
+				Expressions: []FilterExpression{age, name, archived},
+			},
+		},
+		{
+			name: "non-and restriction appends to current and",
+			current: FilterExpression{
+				Operator:    FilterAnd,
+				Expressions: []FilterExpression{age},
+			},
+			restriction: &name,
+			want: FilterExpression{
+				Operator:    FilterAnd,
+				Expressions: []FilterExpression{age, name},
+			},
+		},
+		{
+			name:    "and restriction becomes base and appends current",
+			current: age,
+			restriction: &FilterExpression{
+				Operator:    FilterAnd,
+				Expressions: []FilterExpression{name, archived},
+			},
+			want: FilterExpression{
+				Operator:    FilterAnd,
+				Expressions: []FilterExpression{name, archived, age},
+			},
+		},
+		{
+			name:        "two non-and filters are wrapped in and",
+			current:     age,
+			restriction: &name,
+			want: FilterExpression{
+				Operator:    FilterAnd,
+				Expressions: []FilterExpression{age, name},
+			},
+		},
+		{
+			name:        "empty current becomes restriction",
+			current:     FilterExpression{},
+			restriction: &deleted,
+			want:        deleted,
+		},
+		{
+			name:        "nil restriction is no-op",
+			current:     age,
+			restriction: nil,
+			want:        age,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tt.current.Restrict(tt.restriction)
+			assertFilterExpression(t, tt.current, tt.want)
+		})
+	}
+}
+
 type filterTestSerializer struct{}
 
 func (filterTestSerializer) Serialize(filter FilterExpression) string {

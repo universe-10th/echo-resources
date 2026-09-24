@@ -146,6 +146,55 @@ type FilterExpression struct {
 	Expressions []FilterExpression
 }
 
+// Restrict applies another filter to this filter in-place using AND semantics.
+//
+// A FilterNone receiver already matches no elements, so further restrictions do
+// not change it. A FilterNone restriction turns this filter into an empty
+// FilterNone expression. When either side is an AND expression, Restrict keeps
+// the resulting tree flat by merging or appending AND children instead of
+// creating nested AND expressions.
+func (filter *FilterExpression) Restrict(restriction *FilterExpression) {
+	if filter == nil || restriction == nil || restriction.Operator == "" {
+		return
+	}
+
+	if filter.Operator == FilterNone {
+		return
+	}
+
+	if restriction.Operator == FilterNone {
+		*filter = FilterExpression{Operator: FilterNone}
+		return
+	}
+
+	if filter.Operator == "" {
+		*filter = *restriction
+		return
+	}
+
+	if filter.Operator == FilterAnd && restriction.Operator == FilterAnd {
+		filter.Expressions = append(filter.Expressions, restriction.Expressions...)
+		return
+	}
+
+	if filter.Operator == FilterAnd {
+		filter.Expressions = append(filter.Expressions, *restriction)
+		return
+	}
+
+	if restriction.Operator == FilterAnd {
+		current := *filter
+		*filter = *restriction
+		filter.Expressions = append(filter.Expressions, current)
+		return
+	}
+
+	*filter = FilterExpression{
+		Operator:    FilterAnd,
+		Expressions: []FilterExpression{*filter, *restriction},
+	}
+}
+
 // FilterParser parses and validates serialized JSON filter specifications.
 type FilterParser struct {
 	validator FilterValidator
