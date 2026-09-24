@@ -53,3 +53,9 @@ type PageRendererFunc[IDT comparable, RT types.Resource[IDT]] func(Context, RT, 
 // type types.ValidationError. If there is no error, then the
 // result must be nil.
 type ValidatorFunc[IDT comparable, RT types.Resource[IDT]] func(Context, RT) error
+
+// HandlerFunc is the abstraction of a handler in this context.
+type HandlerFunc func(Context) error
+
+// MiddlewareFunc is the abstraction of a middleware in this context.
+type MiddlewareFunc func(next HandlerFunc) HandlerFunc
