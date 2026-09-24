@@ -216,3 +216,50 @@ func (service ResourceService[IDT, RT]) PageSize() int64 {
 	}
 	return service.pageSize
 }
+
+// Here is where the utility functions for the middleware start.
+
+// MakeElementFilter assembles a filter from the current request.
+func (service ResourceService[IDT, RT]) makeElementFilter(context Context, deleted bool) (
+	*types.FilterExpression, error,
+) {
+	// First, declare the filter.
+	var filter types.FilterExpression
+
+	if !service.singleton {
+		// 1. Get the ID from the path.
+		urlArg := service.urlArg
+		rawId, err := context.GetPathParam(urlArg)
+		if err != nil {
+			return nil, types.NotFoundError[string]{}
+		}
+
+		// 2. Second, parse it to a valid value.
+		id, err := ParsePathParam[IDT](rawId)
+		if err != nil {
+			return nil, types.InvalidIDError{
+				ElementName: service.prefix,
+				Key:         rawId,
+			}
+		}
+
+		// 3. Add the ID filter.
+		service.storage.AddIDFilter(&filter, id)
+	}
+
+	// Then, add the per-context filter.
+	if service.filter != nil {
+		service.filter(context, &filter)
+	}
+
+	// Then, add the per-deleted filter.
+	service.storage.AddDeletedFilter(&filter, deleted)
+
+	// Finally, validate the filter.
+	if err := service.storage.ValidateFilter(&filter); err != nil {
+		return nil, types.BadRequestError{}
+	}
+
+	// And return.
+	return &filter, nil
+}
