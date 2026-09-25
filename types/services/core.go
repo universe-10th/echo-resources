@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"mime"
 	"reflect"
 
 	"github.com/universe-10th/echo-resources/types"
@@ -31,6 +32,8 @@ var (
 	)
 	defaultPageSize int64 = 10
 )
+
+const contentTypeApplicationJSON = "application/json"
 
 // ResourceService describes a service that relates to elements
 // being served through a set of known endpoints.
@@ -65,6 +68,11 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// The filter field keeps a custom filter applier. By default,
 	// no extra filter is applied.
 	filter FilterFunc
+
+	// The reader field keeps a custom reader for the body. By
+	// default, a standard JSON-read is applied. A custom func is
+	// used for when the type to read is different.
+	reader ReaderFunc[IDT, RT]
 
 	// The pageSize field tells how many elements will be rendered
 	// when listing elements. By default, 10 element will be used.
@@ -155,6 +163,36 @@ func (service *ResourceService[IDT, RT]) UsingFilter(filter FilterFunc) *Resourc
 // Filter returns the filter to use for the data retrieval.
 func (service ResourceService[IDT, RT]) Filter() FilterFunc {
 	return service.filter
+}
+
+// UsingReader sets the reader to use for body retrieval.
+func (service *ResourceService[IDT, RT]) UsingReader(reader ReaderFunc[IDT, RT]) *ResourceService[IDT, RT] {
+	service.reader = reader
+	return service
+}
+
+// Reader returns the underlying reader for body data.
+func (service ResourceService[IDT, RT]) Reader() ReaderFunc[IDT, RT] {
+	return service.reader
+}
+
+// The read method is private and reads an element from the body, according
+// to the set reader function.
+func (service ResourceService[IDT, RT]) read(context Context, obj *RT) error {
+	contentTypeHeader, err := context.GetHeader("Content-Type")
+	if err != nil {
+		return types.BadRequestError{}
+	}
+
+	contentType, _, err := mime.ParseMediaType(contentTypeHeader)
+	if err != nil || contentType != contentTypeApplicationJSON {
+		return types.BadRequestError{}
+	}
+
+	if service.reader != nil {
+		return service.reader(context, obj)
+	}
+	return context.BindJSON(obj)
 }
 
 // UsingDefaultSort sets what's the sort criterion when no

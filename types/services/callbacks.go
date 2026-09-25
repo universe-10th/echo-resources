@@ -29,6 +29,10 @@ type FilterFunc func(Context, *types.FilterExpression)
 // The returned list contains JSON names of allowed fields.
 type AllowedFieldsFunc func(Context) ([]string, Allowance)
 
+// ReaderFunc is a function that takes a context and reads
+// an element from its body.
+type ReaderFunc[IDT comparable, RT types.Resource[IDT]] func(Context, *RT) error
+
 // DefaultSortFunc is a callback telling which fields will
 // be used by default when the user does not specify any
 // sort at all. The returned list contains JSON names for
