@@ -919,3 +919,44 @@ func CreateSingletonService[IDT comparable, RT types.Resource[IDT]](
 
 	return MustCreateSingletonService(prefix, storage), nil
 }
+
+// MustCreateCollectionService creates a singleton service, panicking if
+// the prefix is invalid, the URL arg is invalid, or the storage is null.
+func MustCreateCollectionService[IDT comparable, RT types.Resource[IDT]](
+	prefix string, urlArg string, storage types.Storage[IDT, RT],
+) *ResourceService[IDT, RT] {
+	if err := utils.CheckPrefix(prefix); err != nil {
+		panic(err)
+	}
+
+	if err := utils.CheckURLArg(urlArg); err != nil {
+		panic(err)
+	}
+
+	if storage == nil {
+		panic(ErrInvalidStorage)
+	}
+
+	return &ResourceService[IDT, RT]{
+		storage:   storage,
+		prefix:    prefix,
+		singleton: false,
+	}
+}
+
+// CreateCollectionService creates a singleton service, returning an error
+// if the prefix is invalid or the storage is null.
+func CreateCollectionService[IDT comparable, RT types.Resource[IDT]](
+	prefix string, urlArg string, storage types.Storage[IDT, RT],
+) (res *ResourceService[IDT, RT], err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			if err2, ok := v.(error); ok {
+				res = nil
+				err = err2
+			}
+		}
+	}()
+
+	return MustCreateCollectionService(prefix, urlArg, storage), nil
+}
