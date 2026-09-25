@@ -477,9 +477,9 @@ func setElementField(element any, fieldName string, value any) error {
 }
 
 // The get function is an endpoint to get a single element.
-// Pre-requisites: elementMiddleware(false) middleware for GET.
-//
-//	elementMiddleware(true) middleware for GET DELETED.
+// Pre-requisites:
+// - elementMiddleware(false) middleware for GET.
+// - elementMiddleware(true) middleware for GET DELETED.
 func (service ResourceService[IDT, RT]) get(context Context) error {
 	// 1. Get the element.
 	element, err := service.getStackedElement(context, 0)
