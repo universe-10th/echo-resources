@@ -35,7 +35,10 @@ func renderErrorOr(context Context, err error, defaultError types.Error) error {
 
 // elementMiddleware will be the FIRST middleware installed
 // in the per-element (deleted or not) endpoints (either for
-// a collection or for singleton).
+// a collection or for singleton). And it will go down for
+// all the derived elements as well (they will exist under
+// the GET + non-deleted verb). It will also be used in the
+// per-element custom actions.
 func elementMiddleware[IDT comparable, RT types.Resource[IDT]](deleted bool) MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(context Context) error {
