@@ -226,23 +226,24 @@ func (service ResourceService[IDT, RT]) PageSize() int64 {
 
 // MakeElementFilter assembles a filter from the current request.
 func (service ResourceService[IDT, RT]) makeElementFilter(context Context, deleted bool) (
-	*types.FilterExpression, error,
+	*types.FilterExpression, IDT, error,
 ) {
 	// First, declare the filter.
 	var filter types.FilterExpression
+	var id IDT
 
 	if !service.singleton {
 		// 1. Get the ID from the path.
 		urlArg := service.urlArg
 		rawId, err := context.GetPathParam(urlArg)
 		if err != nil {
-			return nil, types.NotFoundError[string]{}
+			return nil, id, types.NotFoundError[string]{}
 		}
 
 		// 2. Second, parse it to a valid value.
 		id, err := ParsePathParam[IDT](rawId)
 		if err != nil {
-			return nil, types.InvalidIDError{
+			return nil, id, types.InvalidIDError{
 				ElementName: service.prefix,
 				Key:         rawId,
 			}
@@ -262,13 +263,13 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 		lastRaw, exists := context.PopElement()
 		if !exists {
 			logger.Error("unbalanced context stack operation (PopElement without previous matching PushElement)")
-			return nil, types.InternalError{}
+			return nil, id, types.InternalError{}
 		}
 
 		last, ok := lastRaw.(*RT)
 		if !ok {
 			logger.Error("PopElement retrieved a invalid element (possible PushElement/PopElement imbalance)")
-			return nil, types.InternalError{}
+			return nil, id, types.InternalError{}
 		}
 
 		filter.Restrict(&types.FilterExpression{
@@ -284,9 +285,9 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 
 	// Finally, validate the filter.
 	if err := service.storage.ValidateFilter(&filter); err != nil {
-		return nil, types.BadRequestError{}
+		return nil, id, types.BadRequestError{}
 	}
 
 	// And return.
-	return &filter, nil
+	return &filter, id, nil
 }
