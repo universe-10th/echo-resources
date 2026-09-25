@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"reflect"
 
+	"github.com/labstack/echo/v4"
 	"github.com/universe-10th/echo-resources/types"
 	"github.com/universe-10th/echo-resources/utils"
 )
@@ -78,6 +79,12 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// the per-user allowed fields. If not set, all the fields will
 	// be allowed.
 	allowedFields AllowedFieldsFunc
+
+	// The elementRenderer function tells how to render an element.
+	elementRenderer ElementRendererFunc[IDT, RT]
+
+	// The pageRenderer function tells how to render a page of elements.
+	pageRenderer PageRendererFunc[IDT, RT]
 
 	// The validator function tells what's the criterion to perform
 	// the validation of a body. By default, it uses go-validate.
@@ -182,7 +189,7 @@ func (service *ResourceService[IDT, RT]) UsingAllowedFields(allowedFields Allowe
 
 // AllowedFields returns the function that tells what are the
 // per-user allowed fields.
-func (service *ResourceService[IDT, RT]) AllowedFields() AllowedFieldsFunc {
+func (service ResourceService[IDT, RT]) AllowedFields() AllowedFieldsFunc {
 	return service.allowedFields
 }
 
@@ -193,8 +200,30 @@ func (service *ResourceService[IDT, RT]) UsingValidator(validator ValidatorFunc[
 }
 
 // Validator returns the validator being used.
-func (service *ResourceService[IDT, RT]) Validator() ValidatorFunc[IDT, RT] {
+func (service ResourceService[IDT, RT]) Validator() ValidatorFunc[IDT, RT] {
 	return service.validator
+}
+
+// UsingElementRenderer sets what's the element renderer.
+func (service *ResourceService[IDT, RT]) UsingElementRenderer(elementRenderer ElementRendererFunc[IDT, RT]) *ResourceService[IDT, RT] {
+	service.elementRenderer = elementRenderer
+	return service
+}
+
+// ElementRenderer returns the element renderer being used.
+func (service ResourceService[IDT, RT]) ElementRenderer() ElementRendererFunc[IDT, RT] {
+	return service.elementRenderer
+}
+
+// UsingPageRenderer sets what's the page renderer.
+func (service *ResourceService[IDT, RT]) UsingPageRenderer(pageRenderer PageRendererFunc[IDT, RT]) *ResourceService[IDT, RT] {
+	service.pageRenderer = pageRenderer
+	return service
+}
+
+// PageRenderer returns the element renderer being used.
+func (service ResourceService[IDT, RT]) PageRenderer() PageRendererFunc[IDT, RT] {
+	return service.pageRenderer
 }
 
 // UsingPageSize sets the amount of elements being listed per page.
@@ -382,4 +411,9 @@ func setElementField(element any, fieldName string, value any) error {
 	}
 
 	return fmt.Errorf("value of type %s cannot be assigned to field %q of type %s", valueValue.Type(), fieldName, fieldValue.Type())
+}
+
+// Endpoint implementation
+func (service ResourceService[IDT, RT]) get(context echo.Context) error {
+
 }
