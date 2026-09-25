@@ -1,11 +1,15 @@
 package services
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"mime"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/universe-10th/echo-resources/types"
 	"github.com/universe-10th/echo-resources/utils"
@@ -34,6 +38,12 @@ var (
 )
 
 const contentTypeApplicationJSON = "application/json"
+
+const (
+	filterQueryArg = "filter"
+	sortQueryArg   = "sort"
+	pageQueryArg   = "page"
+)
 
 // ResourceService describes a service that relates to elements
 // being served through a set of known endpoints.
@@ -535,6 +545,164 @@ func (service ResourceService[IDT, RT]) ensureSingletonCreateAllowed(context Con
 	return true, nil
 }
 
+func (service ResourceService[IDT, RT]) allowedFieldsFor(context Context) ([]string, Allowance) {
+	if service.allowedFields == nil {
+		return nil, All
+	}
+	return service.allowedFields(context)
+}
+
+func (service ResourceService[IDT, RT]) parseListFilter(context Context, fields []string, allowance Allowance) (*types.FilterExpression, error) {
+	rawFilter, err := context.GetQueryParam(filterQueryArg)
+	if err != nil {
+		return &types.FilterExpression{}, nil
+	}
+
+	rawFilter = strings.TrimSpace(rawFilter)
+	if rawFilter == "" {
+		return &types.FilterExpression{}, nil
+	}
+
+	filter, err := types.NewFilterParser(allowedListValidator{
+		fields:    fields,
+		allowance: allowance,
+	}).Parse(json.NewDecoder(bytes.NewBufferString(rawFilter)))
+	if err != nil {
+		return nil, err
+	}
+
+	return &filter, nil
+}
+
+func (service ResourceService[IDT, RT]) parseListSort(context Context, fields []string, allowance Allowance) (*types.SortExpression, error) {
+	rawSort, err := context.GetQueryParam(sortQueryArg)
+	if err != nil {
+		rawSort = ""
+	}
+
+	rawSort = strings.TrimSpace(rawSort)
+	if rawSort != "" {
+		sort, err := types.NewSortParser(allowedListValidator{
+			fields:    fields,
+			allowance: allowance,
+		}).Parse(rawSort)
+		if err != nil {
+			return nil, err
+		}
+
+		return &sort, nil
+	}
+
+	if service.defaultSort == nil {
+		return &types.SortExpression{}, nil
+	}
+
+	sort := service.defaultSort(context)
+	return &sort, nil
+}
+
+func parseListPage(context Context) (int64, error) {
+	rawPage, err := context.GetQueryParam(pageQueryArg)
+	if err != nil {
+		return 0, nil
+	}
+
+	rawPage = strings.TrimSpace(rawPage)
+	if rawPage == "" {
+		return 0, nil
+	}
+
+	page, err := strconv.ParseInt(rawPage, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if page < 0 {
+		return 0, nil
+	}
+
+	return page, nil
+}
+
+func (service ResourceService[IDT, RT]) applyListRestrictions(context Context, filter *types.FilterExpression, deleted bool) error {
+	if service.filter != nil {
+		service.filter(context, filter)
+	}
+
+	if service.constraintJSONField != "" {
+		last, err := service.getStackedElement(context, 0)
+		if err != nil {
+			return err
+		}
+
+		filter.Restrict(&types.FilterExpression{
+			Operator:    types.FilterEQ,
+			Field:       service.constraintJSONField,
+			Value:       last.GetID(),
+			Expressions: nil,
+		})
+	}
+
+	service.storage.AddDeletedFilter(filter, deleted)
+	return service.storage.ValidateFilter(filter)
+}
+
+func listTotalPages(total int64, pageSize int64) int64 {
+	if total <= 0 {
+		return 0
+	}
+	if pageSize <= 0 {
+		pageSize = defaultPageSize
+	}
+
+	return (total + pageSize - 1) / pageSize
+}
+
+type allowedListValidator struct {
+	fields    []string
+	allowance Allowance
+}
+
+func (v allowedListValidator) IsValidCmpFilter(field string, _ any) bool {
+	return v.isAllowed(field)
+}
+
+func (v allowedListValidator) IsNullCheckable(field string) bool {
+	return v.isAllowed(field)
+}
+
+func (v allowedListValidator) IsExistenceCheckable(field string) bool {
+	return v.isAllowed(field)
+}
+
+func (v allowedListValidator) IsContainsCheckable(field string) bool {
+	return v.isAllowed(field)
+}
+
+func (v allowedListValidator) IsSortable(field string, _ types.OrderType) bool {
+	return v.isAllowed(field)
+}
+
+func (v allowedListValidator) isAllowed(field string) bool {
+	switch v.allowance {
+	case Only:
+		return containsAllowedField(v.fields, field)
+	case Except:
+		return !containsAllowedField(v.fields, field)
+	default:
+		return true
+	}
+}
+
+func containsAllowedField(fields []string, field string) bool {
+	for _, allowedField := range fields {
+		if allowedField == field {
+			return true
+		}
+	}
+
+	return false
+}
+
 // The get function is an endpoint to get a single element.
 // Pre-requisites:
 // - elementMiddleware(false) middleware for GET.
@@ -667,4 +835,42 @@ func (service ResourceService[IDT, RT]) restore(context Context) error {
 	}
 
 	return service.RenderElement(context, 200, element)
+}
+
+// The list function is an endpoint to list existing non-deleted or deleted
+// elements. Use deleted=false for ResourceList and deleted=true for
+// ResourceListDeleted.
+func (service ResourceService[IDT, RT]) list(context Context, deleted bool) error {
+	fields, allowance := service.allowedFieldsFor(context)
+
+	filter, err := service.parseListFilter(context, fields, allowance)
+	if err != nil {
+		return renderError(context, types.BadRequestError{})
+	}
+
+	sort, err := service.parseListSort(context, fields, allowance)
+	if err != nil {
+		return renderError(context, types.BadRequestError{})
+	}
+
+	if err := service.storage.ValidateSort(sort); err != nil {
+		return renderError(context, types.BadRequestError{})
+	}
+
+	if err := service.applyListRestrictions(context, filter, deleted); err != nil {
+		return renderErrorOr(context, err, types.BadRequestError{})
+	}
+
+	page, err := parseListPage(context)
+	if err != nil {
+		return renderError(context, types.BadRequestError{})
+	}
+
+	pageSize := service.PageSize()
+	elements, total, err := service.storage.GetElements(filter, sort, page*pageSize, pageSize)
+	if err != nil {
+		return service.renderStorageError(context, err)
+	}
+
+	return service.RenderPage(context, 200, elements, page, listTotalPages(total, pageSize))
 }

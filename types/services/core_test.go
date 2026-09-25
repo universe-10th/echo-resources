@@ -320,6 +320,114 @@ func TestDeletePruneAndRestoreUseStackedElement(t *testing.T) {
 	}
 }
 
+func TestListParsesQueryAppliesRestrictionsRetrievesAndRenders(t *testing.T) {
+	t.Parallel()
+
+	parent := &endpointTestResource{ID: 7}
+	storage := newEndpointStorage()
+	storage.elements = []*endpointTestResource{
+		{ID: 10, ParentID: parent.ID},
+		{ID: 11, ParentID: parent.ID},
+	}
+	storage.total = 21
+	context := &endpointTestContext{
+		stack: []any{parent},
+		query: map[string]string{
+			"filter": `{"name":{"$contains":"a"}}`,
+			"sort":   "-name",
+			"page":   "2",
+		},
+	}
+	service := ResourceService[int, *endpointTestResource]{
+		prefix:              "children",
+		storage:             storage,
+		constraintJSONField: "parent_id",
+		pageSize:            10,
+		allowedFields: func(Context) ([]string, Allowance) {
+			return []string{"name", "parent_id"}, Only
+		},
+	}
+
+	err := service.list(context, true)
+	if err != nil {
+		t.Fatalf("list returned error: %v", err)
+	}
+	if storage.skip != 20 {
+		t.Fatalf("expected skip 20, got %d", storage.skip)
+	}
+	if storage.limit != 10 {
+		t.Fatalf("expected limit 10, got %d", storage.limit)
+	}
+	if storage.filter == nil {
+		t.Fatal("expected filter to be passed to storage")
+	}
+	if storage.sort == nil || len(storage.sort.Sort) != 1 || storage.sort.Sort[0].Field != "name" || storage.sort.Sort[0].Order != types.Desc {
+		t.Fatalf("unexpected sort: %#v", storage.sort)
+	}
+	if context.renderStatus != 200 {
+		t.Fatalf("expected render status 200, got %d", context.renderStatus)
+	}
+	if context.renderBody == nil {
+		t.Fatal("expected rendered page body")
+	}
+}
+
+func TestListUsesDefaultSortAndDefaultPage(t *testing.T) {
+	t.Parallel()
+
+	storage := newEndpointStorage()
+	context := &endpointTestContext{}
+	service := ResourceService[int, *endpointTestResource]{
+		prefix:  "resources",
+		storage: storage,
+		defaultSort: func(Context) types.SortExpression {
+			return types.SortExpression{
+				Sort: []types.Sort{{Field: "id", Order: types.Asc}},
+			}
+		},
+	}
+
+	err := service.list(context, false)
+	if err != nil {
+		t.Fatalf("list returned error: %v", err)
+	}
+	if storage.skip != 0 {
+		t.Fatalf("expected default skip 0, got %d", storage.skip)
+	}
+	if storage.limit != defaultPageSize {
+		t.Fatalf("expected default limit %d, got %d", defaultPageSize, storage.limit)
+	}
+	if storage.sort == nil || len(storage.sort.Sort) != 1 || storage.sort.Sort[0].Field != "id" {
+		t.Fatalf("unexpected default sort: %#v", storage.sort)
+	}
+}
+
+func TestListRejectsDisallowedFilterField(t *testing.T) {
+	t.Parallel()
+
+	storage := newEndpointStorage()
+	context := &endpointTestContext{
+		query: map[string]string{
+			"filter": `{"name":{"$contains":"a"}}`,
+		},
+	}
+	service := ResourceService[int, *endpointTestResource]{
+		prefix:  "resources",
+		storage: storage,
+		allowedFields: func(Context) ([]string, Allowance) {
+			return []string{"name"}, Except
+		},
+	}
+
+	err := service.list(context, false)
+	if err != nil {
+		t.Fatalf("list returned error: %v", err)
+	}
+	if context.renderStatus != int(types.ErrBadRequest) {
+		t.Fatalf("expected bad request status, got %d", context.renderStatus)
+	}
+}
+
 type coreConstraintStorage[IDT comparable, RT types.Resource[IDT]] struct {
 	mapping *types.FieldsMapping
 }
@@ -386,6 +494,12 @@ type endpointGetResult struct {
 type endpointStorage struct {
 	mapping    *types.FieldsMapping
 	getResults []endpointGetResult
+	elements   []*endpointTestResource
+	total      int64
+	filter     *types.FilterExpression
+	sort       *types.SortExpression
+	skip       int64
+	limit      int64
 	saved      *endpointTestResource
 	deleted    *endpointTestResource
 	restored   *endpointTestResource
@@ -415,8 +529,13 @@ func (s *endpointStorage) GetElement(*types.FilterExpression) (*endpointTestReso
 	s.getResults = s.getResults[1:]
 	return result.element, result.found, result.err
 }
-func (s *endpointStorage) GetElements(*types.FilterExpression, *types.SortExpression, int64, int64) ([]*endpointTestResource, int64, error) {
-	return nil, 0, nil
+func (s *endpointStorage) GetElements(filter *types.FilterExpression, sort *types.SortExpression, skip int64, limit int64) ([]*endpointTestResource, int64, error) {
+	s.calls = append(s.calls, "GetElements")
+	s.filter = filter
+	s.sort = sort
+	s.skip = skip
+	s.limit = limit
+	return s.elements, s.total, nil
 }
 func (s *endpointStorage) Save(element **endpointTestResource) (bool, error) {
 	s.calls = append(s.calls, "Save")
@@ -451,6 +570,7 @@ func (s *endpointStorage) AddDeletedFilter(*types.FilterExpression, bool) {
 
 type endpointTestContext struct {
 	stack           []any
+	query           map[string]string
 	contentType     string
 	bind            func(any) error
 	renderStatus    int
@@ -458,9 +578,11 @@ type endpointTestContext struct {
 	noContentStatus int
 }
 
-func (c *endpointTestContext) Native() any                             { return nil }
-func (c *endpointTestContext) GetPathParam(string) (string, error)     { return "", nil }
-func (c *endpointTestContext) GetQueryParam(string) (string, error)    { return "", nil }
+func (c *endpointTestContext) Native() any                         { return nil }
+func (c *endpointTestContext) GetPathParam(string) (string, error) { return "", nil }
+func (c *endpointTestContext) GetQueryParam(name string) (string, error) {
+	return c.query[name], nil
+}
 func (c *endpointTestContext) GetQueryParams(string) ([]string, error) { return nil, nil }
 func (c *endpointTestContext) GetHeader(name string) (string, error) {
 	if name == "Content-Type" {
