@@ -45,6 +45,28 @@ const (
 	pageQueryArg   = "page"
 )
 
+// A Service is an instance that can be registered in a web application.
+type Service interface {
+	// Prefix stands for the prefix to use.
+	Prefix() string
+
+	// URLArg stands for the name of the url arg to use.
+	// Only applies for collection services.
+	URLArg() string
+
+	// IsSingleton tells whether the resource is a singleton.
+	IsSingleton() bool
+
+	// Verbs tells the list of supported verbs.
+	Verbs() ResourceVerbs
+
+	// Children tells the services that are children of this service.
+	Children() []Service
+
+	// Parent tells the parent of the current service.
+	Parent() Service
+}
+
 // ResourceService describes a service that relates to elements
 // being served through a set of known endpoints.
 type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
@@ -70,6 +92,12 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// another resource: it's the JSON name of a field to look up,
 	// as part of the current filter lookup.
 	constraintJSONField string
+
+	// The parentService is nil or an instance of a service.
+	parentService Service
+
+	// The childrenServices is a slice of registered children.
+	childrenServices []Service
 
 	// The verbs field tells which verbs will be considered for
 	// the resource.
@@ -325,6 +353,21 @@ func (service ResourceService[IDT, RT]) PageSize() int64 {
 		return defaultPageSize
 	}
 	return service.pageSize
+}
+
+// Children returns the registered children of the service.
+func (service ResourceService[IDT, RT]) Children() []Service {
+	if service.childrenServices == nil {
+		return nil
+	}
+	copy_ := make([]Service, len(service.childrenServices))
+	copy(copy_, service.childrenServices)
+	return copy_
+}
+
+// Parent returns the registered parent of this service.
+func (service ResourceService[IDT, RT]) Parent() Service {
+	return service.parentService
 }
 
 // Here is where the utility functions for the middleware start.
