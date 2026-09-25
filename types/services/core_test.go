@@ -55,7 +55,7 @@ func TestApplyPreviousConstraintSetsMappedField(t *testing.T) {
 		constraintJSONField: "parent_id",
 	}
 
-	err := service.applyPreviousConstraint(coreConstraintContext{element: &parent}, &element)
+	err := service.applyPreviousConstraint(coreConstraintContext{element: parent}, &element)
 	if err != nil {
 		t.Fatalf("applyPreviousConstraint returned error: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestApplyConstraintReturnsInternalErrorForUnmappedField(t *testing.T) {
 		constraintJSONField: "missing",
 	}
 
-	err := service.applyPreviousConstraint(coreConstraintContext{element: &parent}, &element)
+	err := service.applyPreviousConstraint(coreConstraintContext{element: parent}, &element)
 	var internal types.InternalError
 	if !errors.As(err, &internal) {
 		t.Fatalf("expected InternalError, got %T: %v", err, err)
@@ -93,7 +93,7 @@ func TestApplyConstraintReturnsInternalErrorForIncompatibleField(t *testing.T) {
 		constraintJSONField: "parent_id",
 	}
 
-	err := service.applyPreviousConstraint(coreConstraintContext{element: &parent}, &element)
+	err := service.applyPreviousConstraint(coreConstraintContext{element: parent}, &element)
 	var internal types.InternalError
 	if !errors.As(err, &internal) {
 		t.Fatalf("expected InternalError, got %T: %v", err, err)

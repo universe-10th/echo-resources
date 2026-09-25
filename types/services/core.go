@@ -274,17 +274,18 @@ func (service ResourceService[IDT, RT]) PageSize() int64 {
 // Here is where the utility functions for the middleware start.
 
 // getStackedElement gets the element at the last constraint level.
-func (service ResourceService[IDT, RT]) getStackedElement(context Context, index int) (*RT, error) {
+func (service ResourceService[IDT, RT]) getStackedElement(context Context, index int) (RT, error) {
+	var zero RT
 	lastRaw, exists := context.PeekElement(index)
 	if !exists {
 		logger.Error("no element in context stack - provably called outside element middleware")
-		return nil, types.InternalError{}
+		return zero, types.InternalError{}
 	}
 
-	last, ok := lastRaw.(*RT)
+	last, ok := lastRaw.(RT)
 	if !ok {
 		logger.Error("invalid element in context stack - provably called outside element middleware")
-		return nil, types.InternalError{}
+		return zero, types.InternalError{}
 	}
 
 	return last, nil
@@ -336,7 +337,7 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 		filter.Restrict(&types.FilterExpression{
 			Operator:    types.FilterEQ,
 			Field:       service.constraintJSONField,
-			Value:       (*last).GetID(),
+			Value:       last.GetID(),
 			Expressions: nil,
 		})
 	}
@@ -376,7 +377,7 @@ func (service ResourceService[IDT, RT]) applyPreviousConstraint(context Context,
 			return types.InternalError{}
 		}
 
-		if err := setElementField(element, fieldName, (*last).GetID()); err != nil {
+		if err := setElementField(element, fieldName, last.GetID()); err != nil {
 			logger.Error(
 				"could not apply constraint to resource element",
 				"prefix", service.prefix,
@@ -449,5 +450,5 @@ func (service ResourceService[IDT, RT]) get(context Context) error {
 	}
 
 	// 2. Render it.
-	return service.RenderElement(context, 200, *element)
+	return service.RenderElement(context, 200, element)
 }

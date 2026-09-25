@@ -10,10 +10,15 @@ import (
 // a resource. Useful for particular middleware functions that
 // need to detect the current endpoint, and registered prior
 // to any other middleware functions given to the resource.
-func setupMiddleware(resource any, endpointType EndpointType, verb ResourceVerb, name string) MiddlewareFunc {
+func setupMiddleware[IDT comparable, RT types.Resource[IDT]](
+	service *ResourceService[IDT, RT],
+	endpointType EndpointType,
+	verb ResourceVerb,
+	name string,
+) MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(context Context) error {
-			context.Setup(resource, endpointType, verb, name)
+			context.Setup(service, endpointType, verb, name)
 			return next(context)
 		}
 	}
@@ -44,7 +49,7 @@ func elementMiddleware[IDT comparable, RT types.Resource[IDT]](deleted bool) Mid
 		return func(context Context) error {
 			// 1. Get the service. If, for some reason, it is not properly
 			//    set, return an error for bad configuration.
-			service, ok := context.CurrentService().(ResourceService[IDT, RT])
+			service, ok := context.CurrentService().(*ResourceService[IDT, RT])
 			if !ok {
 				logger.Error("service is not properly configured!")
 				return renderError(context, types.InternalError{})
