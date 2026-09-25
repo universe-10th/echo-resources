@@ -882,3 +882,40 @@ func (service ResourceService[IDT, RT]) list(context Context, deleted bool) erro
 
 	return service.RenderPage(context, 200, elements, page, listTotalPages(total, pageSize))
 }
+
+// MustCreateSingletonService creates a singleton service, panicking if
+// the prefix is invalid or the storage is null.
+func MustCreateSingletonService[IDT comparable, RT types.Resource[IDT]](
+	prefix string, storage types.Storage[IDT, RT],
+) *ResourceService[IDT, RT] {
+	if err := utils.CheckPrefix(prefix); err != nil {
+		panic(err)
+	}
+
+	if storage == nil {
+		panic(ErrInvalidStorage)
+	}
+
+	return &ResourceService[IDT, RT]{
+		storage:   storage,
+		prefix:    prefix,
+		singleton: true,
+	}
+}
+
+// CreateSingletonService creates a singleton service, returning an error
+// if the prefix is invalid or the storage is null.
+func CreateSingletonService[IDT comparable, RT types.Resource[IDT]](
+	prefix string, storage types.Storage[IDT, RT],
+) (res *ResourceService[IDT, RT], err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			if err2, ok := v.(error); ok {
+				res = nil
+				err = err2
+			}
+		}
+	}()
+
+	return MustCreateSingletonService(prefix, storage), nil
+}
