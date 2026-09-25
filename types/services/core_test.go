@@ -101,6 +101,71 @@ func TestReadRejectsNonJSONContent(t *testing.T) {
 	}
 }
 
+func TestMustAttachToLinksParentAndChild(t *testing.T) {
+	t.Parallel()
+
+	parent := ResourceService[int, coreConstraintResource]{
+		prefix: "parents",
+		urlArg: "parent_id",
+	}
+	child := ResourceService[int, coreConstraintResource]{
+		prefix: "children",
+		urlArg: "child_id",
+	}
+
+	child.MustAttachTo(&parent)
+
+	if child.Parent() != &parent {
+		t.Fatal("expected child parent to be set")
+	}
+	if child.constraintJSONField != parent.URLArg() {
+		t.Fatalf("expected constraint field %q, got %q", parent.URLArg(), child.constraintJSONField)
+	}
+
+	children := parent.Children()
+	if len(children) != 1 || children[0] != &child {
+		t.Fatalf("expected parent to have child registered, got %#v", children)
+	}
+}
+
+func TestAttachToReturnsErrorForCycle(t *testing.T) {
+	t.Parallel()
+
+	parent := ResourceService[int, coreConstraintResource]{
+		prefix: "parents",
+		urlArg: "parent_id",
+	}
+	child := ResourceService[int, coreConstraintResource]{
+		prefix: "children",
+		urlArg: "child_id",
+	}
+
+	child.MustAttachTo(&parent)
+
+	err := parent.AttachTo(&child)
+	if !errors.Is(err, ErrCyclicServiceAttachment) {
+		t.Fatalf("expected ErrCyclicServiceAttachment, got %v", err)
+	}
+}
+
+func TestAttachToReturnsErrorForDuplicateURLArgInParentPath(t *testing.T) {
+	t.Parallel()
+
+	parent := ResourceService[int, coreConstraintResource]{
+		prefix: "parents",
+		urlArg: "id",
+	}
+	child := ResourceService[int, coreConstraintResource]{
+		prefix: "children",
+		urlArg: "id",
+	}
+
+	err := child.AttachTo(&parent)
+	if !errors.Is(err, ErrConflictingServiceURLArg) {
+		t.Fatalf("expected ErrConflictingServiceURLArg, got %v", err)
+	}
+}
+
 func TestApplyPreviousConstraintSetsMappedField(t *testing.T) {
 	t.Parallel()
 

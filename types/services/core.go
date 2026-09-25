@@ -17,6 +17,9 @@ import (
 
 var (
 	ErrInvalidStorage              = errors.New("invalid storage")
+	ErrInvalidParentService        = errors.New("invalid parent service")
+	ErrCyclicServiceAttachment     = errors.New("cyclic service attachment")
+	ErrConflictingServiceURLArg    = errors.New("conflicting service URL arg")
 	logger                         = slog.Default()
 	defaultCollectionResourceVerbs = NewResourceVerbs(
 		ResourceGet, ResourceList,
@@ -353,6 +356,86 @@ func (service ResourceService[IDT, RT]) PageSize() int64 {
 		return defaultPageSize
 	}
 	return service.pageSize
+}
+
+type childAppender interface {
+	addChild(Service)
+}
+
+func sameService(left Service, right Service) bool {
+	if left == nil || right == nil {
+		return false
+	}
+
+	leftValue := reflect.ValueOf(left)
+	rightValue := reflect.ValueOf(right)
+	if leftValue.Kind() == reflect.Pointer && rightValue.Kind() == reflect.Pointer {
+		return leftValue.Type() == rightValue.Type() && leftValue.Pointer() == rightValue.Pointer()
+	}
+
+	if leftValue.Type().Comparable() && rightValue.Type().Comparable() {
+		return left == right
+	}
+
+	return false
+}
+
+func (service *ResourceService[IDT, RT]) addChild(child Service) {
+	for _, registered := range service.childrenServices {
+		if sameService(registered, child) {
+			return
+		}
+	}
+
+	service.childrenServices = append(service.childrenServices, child)
+}
+
+// MustAttachTo attaches the current service to another service.
+// It fails, panicking, under the following conditions:
+//   - s being null.
+//   - s being the current service.
+//   - Traversing the .Parent() upward in `s`, it is found that
+//     the current service is in the path (causing a cycle), or
+//     the current service is a Collection and also the URL Arg
+//     of the current service is found while traversing.
+func (service *ResourceService[IDT, RT]) MustAttachTo(s Service) {
+	if s == nil {
+		panic(ErrInvalidParentService)
+	}
+
+	for parent := s; parent != nil; parent = parent.Parent() {
+		if sameService(parent, service) {
+			panic(ErrCyclicServiceAttachment)
+		}
+
+		if !service.singleton && !parent.IsSingleton() && parent.URLArg() == service.urlArg {
+			panic(ErrConflictingServiceURLArg)
+		}
+	}
+
+	if !s.IsSingleton() {
+		service.constraintJSONField = s.URLArg()
+	}
+	service.parentService = s
+	if appender, ok := s.(childAppender); ok {
+		appender.addChild(service)
+	}
+}
+
+// AttachTo attaches the current service to another service. It
+// fails on the same conditions MustAttach fails, but returns
+// an error instead of panicking.
+func (service *ResourceService[IDT, RT]) AttachTo(s Service) (err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			if err2, ok := v.(error); ok {
+				err = err2
+			}
+		}
+	}()
+
+	service.MustAttachTo(s)
+	return nil
 }
 
 // Children returns the registered children of the service.
@@ -984,6 +1067,7 @@ func MustCreateCollectionService[IDT comparable, RT types.Resource[IDT]](
 		storage:   storage,
 		prefix:    prefix,
 		singleton: false,
+		urlArg:    urlArg,
 	}
 }
 
