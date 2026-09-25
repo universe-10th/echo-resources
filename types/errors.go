@@ -113,6 +113,22 @@ func (e InvalidIDError) Code() ErrorCode {
 	return ErrNotFound
 }
 
+// SingletonNotFoundError stands for when a parsed id is invalid.
+type SingletonNotFoundError struct {
+	ElementName string `json:"element_name"`
+}
+
+// Error implements the error interface in SingletonNotFoundError.
+func (e SingletonNotFoundError) Error() string {
+	return "element not found"
+}
+
+// Code implements the error code for the Error interface in NotFoundError,
+// returning SingletonNotFoundError.
+func (e SingletonNotFoundError) Code() ErrorCode {
+	return ErrNotFound
+}
+
 // NotFoundError stands for when an element does not exist.
 type NotFoundError[IDT comparable] struct {
 	ElementName string `json:"element_name"`
