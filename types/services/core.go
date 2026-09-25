@@ -251,6 +251,14 @@ func (service ResourceService[IDT, RT]) Validator() ValidatorFunc[IDT, RT] {
 	return service.validator
 }
 
+// UsingMiddlewares tells the middlewares will be used.
+// Middlewares are evaluated left-to-right (they also end
+// right-to-left, since they're like onion layers).
+func (service *ResourceService[IDT, RT]) UsingMiddlewares(middlewares ...MiddlewareFunc) *ResourceService[IDT, RT] {
+	service.middlewares = middlewares
+	return service
+}
+
 // UsingElementRenderer sets what's the element renderer.
 func (service *ResourceService[IDT, RT]) UsingElementRenderer(elementRenderer ElementRendererFunc[IDT, RT]) *ResourceService[IDT, RT] {
 	service.elementRenderer = elementRenderer
