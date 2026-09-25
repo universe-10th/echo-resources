@@ -45,7 +45,7 @@ type ElementRendererFunc[IDT comparable, RT types.Resource[IDT]] func(Context, R
 // PageRendererFunc is a function that tells how an elements'
 // page is renderer. The elements are rendered but also the
 // numbers of the current page and amount of pages are rendered.
-type PageRendererFunc[IDT comparable, RT types.Resource[IDT]] func(Context, RT, int64, int64) error
+type PageRendererFunc[IDT comparable, RT types.Resource[IDT]] func(Context, []RT, int64, int64) error
 
 // ValidatorFunc is a function that validates an item. When
 // a validation error occurs, the error result must be of
