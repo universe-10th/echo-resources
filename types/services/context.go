@@ -110,8 +110,9 @@ type Context interface {
 
 	// PeekElement peeks the last element, without popping it,
 	// from the context stack. By convention, the element should
-	// always be a pointer to a resource.
-	PeekElement() any
+	// always be a pointer to a resource. The second argument
+	// will be false if there are no elements to pop.
+	PeekElement() (any, bool)
 
 	// RenderJSON renders body as a JSON response with status.
 	RenderJSON(status int, body any) error
