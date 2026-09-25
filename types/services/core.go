@@ -476,6 +476,65 @@ func setElementField(element any, fieldName string, value any) error {
 	return fmt.Errorf("value of type %s cannot be assigned to field %q of type %s", valueValue.Type(), fieldName, fieldValue.Type())
 }
 
+func (service ResourceService[IDT, RT]) validate(context Context, element RT) error {
+	if service.validator != nil {
+		return service.validator(context, element)
+	}
+	return utils.Validate(element)
+}
+
+func (service ResourceService[IDT, RT]) renderNotFound(context Context, id IDT) error {
+	if service.singleton {
+		return renderError(context, types.SingletonNotFoundError{
+			ElementName: service.prefix,
+		})
+	}
+
+	return renderError(context, types.NotFoundError[IDT]{
+		ElementName: service.prefix,
+		Key:         id,
+	})
+}
+
+func (service ResourceService[IDT, RT]) renderStorageError(context Context, err error) error {
+	return renderErrorOr(context, err, types.InternalError{})
+}
+
+func (service ResourceService[IDT, RT]) ensureSingletonCreateAllowed(context Context) (bool, error) {
+	if !service.singleton {
+		return true, nil
+	}
+
+	activeFilter, _, err := service.makeElementFilter(context, false)
+	if err != nil {
+		return false, renderErrorOr(context, err, types.BadRequestError{})
+	}
+
+	if _, found, err := service.storage.GetElement(activeFilter); err != nil {
+		return false, service.renderStorageError(context, err)
+	} else if found {
+		return false, renderError(context, types.SingletonAlreadyExistsError{})
+	}
+
+	var zero RT
+	if _, ok := any(zero).(types.SoftDeletedResource[IDT]); !ok {
+		return true, nil
+	}
+
+	deletedFilter, _, err := service.makeElementFilter(context, true)
+	if err != nil {
+		return false, renderErrorOr(context, err, types.BadRequestError{})
+	}
+
+	if _, found, err := service.storage.GetElement(deletedFilter); err != nil {
+		return false, service.renderStorageError(context, err)
+	} else if found {
+		return false, renderError(context, types.SingletonDeletedExistsError{})
+	}
+
+	return true, nil
+}
+
 // The get function is an endpoint to get a single element.
 // Pre-requisites:
 // - elementMiddleware(false) middleware for GET.
@@ -488,5 +547,124 @@ func (service ResourceService[IDT, RT]) get(context Context) error {
 	}
 
 	// 2. Render it.
+	return service.RenderElement(context, 200, element)
+}
+
+// The update function is an endpoint to update an existing non-deleted element.
+// Pre-requisites: elementMiddleware(false) middleware.
+func (service ResourceService[IDT, RT]) update(context Context) error {
+	element, err := service.getStackedElement(context, 0)
+	if err != nil {
+		return err
+	}
+
+	id := element.GetID()
+	createdAt := element.GetCreationTime()
+
+	if err := service.read(context, &element); err != nil {
+		return renderErrorOr(context, err, types.BadRequestError{})
+	}
+
+	element.SetID(id)
+	element.RestoreCreationTime(createdAt)
+
+	if err := service.applyPreviousConstraint(context, &element); err != nil {
+		return renderErrorOr(context, err, types.InternalError{})
+	}
+
+	if err := service.validate(context, element); err != nil {
+		return renderErrorOr(context, err, types.ValidationError{})
+	}
+
+	if notFound, err := service.storage.Save(&element); err != nil {
+		return service.renderStorageError(context, err)
+	} else if notFound {
+		return service.renderNotFound(context, id)
+	}
+
+	return service.RenderElement(context, 200, element)
+}
+
+// The create function is an endpoint to create a new element.
+func (service ResourceService[IDT, RT]) create(context Context) error {
+	allowed, err := service.ensureSingletonCreateAllowed(context)
+	if err != nil || !allowed {
+		return err
+	}
+
+	var element RT
+	if err := service.read(context, &element); err != nil {
+		return renderErrorOr(context, err, types.BadRequestError{})
+	}
+
+	var zero IDT
+	element.SetID(zero)
+	element.SetCreationTime()
+
+	if err := service.applyPreviousConstraint(context, &element); err != nil {
+		return renderErrorOr(context, err, types.InternalError{})
+	}
+
+	if err := service.validate(context, element); err != nil {
+		return renderErrorOr(context, err, types.ValidationError{})
+	}
+
+	if notFound, err := service.storage.Save(&element); err != nil {
+		return service.renderStorageError(context, err)
+	} else if notFound {
+		return renderError(context, types.InternalError{})
+	}
+
+	return service.RenderElement(context, 201, element)
+}
+
+// The delete function is an endpoint to delete an existing non-deleted element.
+// Pre-requisites: elementMiddleware(false) middleware.
+func (service ResourceService[IDT, RT]) delete(context Context) error {
+	element, err := service.getStackedElement(context, 0)
+	if err != nil {
+		return err
+	}
+
+	if notFound, err := service.storage.Delete(&element); err != nil {
+		return service.renderStorageError(context, err)
+	} else if notFound {
+		return service.renderNotFound(context, element.GetID())
+	}
+
+	return context.RenderNoContent(204)
+}
+
+// The prune function is an endpoint to permanently delete an existing deleted
+// element. Pre-requisites: elementMiddleware(true) middleware.
+func (service ResourceService[IDT, RT]) prune(context Context) error {
+	element, err := service.getStackedElement(context, 0)
+	if err != nil {
+		return err
+	}
+
+	if notFound, err := service.storage.Prune(&element); err != nil {
+		return service.renderStorageError(context, err)
+	} else if notFound {
+		return service.renderNotFound(context, element.GetID())
+	}
+
+	return context.RenderNoContent(204)
+}
+
+// The restore function is an endpoint to restore an existing deleted element.
+// Pre-requisites: elementMiddleware(true) middleware.
+func (service ResourceService[IDT, RT]) restore(context Context) error {
+	element, err := service.getStackedElement(context, 0)
+	if err != nil {
+		return err
+	}
+
+	if notFound, err := service.storage.Restore(&element); err != nil {
+		return service.renderStorageError(context, err)
+	} else if notFound {
+		return service.renderNotFound(context, element.GetID())
+	}
+
 	return service.RenderElement(context, 200, element)
 }

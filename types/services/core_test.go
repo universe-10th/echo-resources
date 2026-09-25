@@ -157,6 +157,169 @@ func TestApplyConstraintReturnsInternalErrorForIncompatibleField(t *testing.T) {
 	}
 }
 
+func TestUpdateReadsRestoresAppliesConstraintSavesAndRenders(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 9, 25, 8, 0, 0, 0, time.UTC)
+	bodyCreatedAt := createdAt.Add(time.Hour)
+	parent := &endpointTestResource{ID: 7}
+	current := &endpointTestResource{ID: 42, CreatedAt: createdAt}
+	storage := newEndpointStorage()
+	context := &endpointTestContext{
+		stack:       []any{current, parent},
+		contentType: "application/json",
+		bind: func(target any) error {
+			element := target.(**endpointTestResource)
+			*element = &endpointTestResource{ID: 999, CreatedAt: bodyCreatedAt, Name: "updated"}
+			return nil
+		},
+	}
+	service := ResourceService[int, *endpointTestResource]{
+		prefix:              "children",
+		storage:             storage,
+		constraintJSONField: "parent_id",
+		validator: func(Context, *endpointTestResource) error {
+			storage.calls = append(storage.calls, "Validate")
+			return nil
+		},
+	}
+
+	err := service.update(context)
+	if err != nil {
+		t.Fatalf("update returned error: %v", err)
+	}
+	if storage.saved == nil {
+		t.Fatal("expected update to save element")
+	}
+	if storage.saved.ID != current.ID {
+		t.Fatalf("expected ID %d, got %d", current.ID, storage.saved.ID)
+	}
+	if !storage.saved.CreatedAt.Equal(createdAt) {
+		t.Fatalf("expected CreatedAt %s, got %s", createdAt, storage.saved.CreatedAt)
+	}
+	if storage.saved.ParentID != parent.ID {
+		t.Fatalf("expected ParentID %d, got %d", parent.ID, storage.saved.ParentID)
+	}
+	if context.renderStatus != 200 {
+		t.Fatalf("expected render status 200, got %d", context.renderStatus)
+	}
+}
+
+func TestCreateClearsIDStampsSavesAndRenders(t *testing.T) {
+	t.Parallel()
+
+	storage := newEndpointStorage()
+	context := &endpointTestContext{
+		contentType: "application/json",
+		bind: func(target any) error {
+			element := target.(**endpointTestResource)
+			*element = &endpointTestResource{ID: 999, Name: "created"}
+			return nil
+		},
+	}
+	service := ResourceService[int, *endpointTestResource]{
+		prefix:  "resources",
+		storage: storage,
+	}
+
+	err := service.create(context)
+	if err != nil {
+		t.Fatalf("create returned error: %v", err)
+	}
+	if storage.saved == nil {
+		t.Fatal("expected create to save element")
+	}
+	if storage.saved.ID != 0 {
+		t.Fatalf("expected cleared ID 0, got %d", storage.saved.ID)
+	}
+	if storage.saved.CreatedAt.IsZero() {
+		t.Fatal("expected creation time to be set")
+	}
+	if context.renderStatus != 201 {
+		t.Fatalf("expected render status 201, got %d", context.renderStatus)
+	}
+}
+
+func TestCreateSingletonRejectsExistingActiveElement(t *testing.T) {
+	t.Parallel()
+
+	storage := newEndpointStorage()
+	storage.getResults = []endpointGetResult{
+		{element: &endpointTestResource{ID: 1}, found: true},
+	}
+	context := &endpointTestContext{contentType: "application/json"}
+	service := ResourceService[int, *endpointTestResource]{
+		prefix:    "profile",
+		storage:   storage,
+		singleton: true,
+	}
+
+	err := service.create(context)
+	if err != nil {
+		t.Fatalf("create returned error: %v", err)
+	}
+	if context.renderStatus != int(types.ErrConflict) {
+		t.Fatalf("expected conflict status, got %d", context.renderStatus)
+	}
+	if storage.saved != nil {
+		t.Fatal("expected singleton conflict to skip save")
+	}
+}
+
+func TestDeletePruneAndRestoreUseStackedElement(t *testing.T) {
+	t.Parallel()
+
+	element := &endpointTestResource{ID: 42}
+
+	deleteStorage := newEndpointStorage()
+	deleteContext := &endpointTestContext{stack: []any{element}}
+	deleteService := ResourceService[int, *endpointTestResource]{
+		prefix:  "resources",
+		storage: deleteStorage,
+	}
+	if err := deleteService.delete(deleteContext); err != nil {
+		t.Fatalf("delete returned error: %v", err)
+	}
+	if deleteStorage.deleted != element {
+		t.Fatal("expected delete to use stacked element")
+	}
+	if deleteContext.noContentStatus != 204 {
+		t.Fatalf("expected delete status 204, got %d", deleteContext.noContentStatus)
+	}
+
+	pruneStorage := newEndpointStorage()
+	pruneContext := &endpointTestContext{stack: []any{element}}
+	pruneService := ResourceService[int, *endpointTestResource]{
+		prefix:  "resources",
+		storage: pruneStorage,
+	}
+	if err := pruneService.prune(pruneContext); err != nil {
+		t.Fatalf("prune returned error: %v", err)
+	}
+	if pruneStorage.pruned != element {
+		t.Fatal("expected prune to use stacked element")
+	}
+	if pruneContext.noContentStatus != 204 {
+		t.Fatalf("expected prune status 204, got %d", pruneContext.noContentStatus)
+	}
+
+	restoreStorage := newEndpointStorage()
+	restoreContext := &endpointTestContext{stack: []any{element}}
+	restoreService := ResourceService[int, *endpointTestResource]{
+		prefix:  "resources",
+		storage: restoreStorage,
+	}
+	if err := restoreService.restore(restoreContext); err != nil {
+		t.Fatalf("restore returned error: %v", err)
+	}
+	if restoreStorage.restored != element {
+		t.Fatal("expected restore to use stacked element")
+	}
+	if restoreContext.renderStatus != 200 {
+		t.Fatalf("expected restore status 200, got %d", restoreContext.renderStatus)
+	}
+}
+
 type coreConstraintStorage[IDT comparable, RT types.Resource[IDT]] struct {
 	mapping *types.FieldsMapping
 }
@@ -192,6 +355,162 @@ func (s coreConstraintStorage[IDT, RT]) ValidateSort(*types.SortExpression) erro
 }
 func (s coreConstraintStorage[IDT, RT]) AddIDFilter(*types.FilterExpression, IDT)       {}
 func (s coreConstraintStorage[IDT, RT]) AddDeletedFilter(*types.FilterExpression, bool) {}
+
+type endpointTestResource struct {
+	ID        int
+	ParentID  int `json:"parent_id"`
+	Name      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (r *endpointTestResource) GetID() int                          { return r.ID }
+func (r *endpointTestResource) SetID(id int)                        { r.ID = id }
+func (r *endpointTestResource) GetIDField() string                  { return "id" }
+func (r *endpointTestResource) GetCreationTime() time.Time          { return r.CreatedAt }
+func (r *endpointTestResource) GetLastUpdateTime() time.Time        { return r.UpdatedAt }
+func (r *endpointTestResource) SetCreationTime()                    { r.CreatedAt = time.Now().UTC() }
+func (r *endpointTestResource) SetCreationTimeIn(*time.Location)    { r.SetCreationTime() }
+func (r *endpointTestResource) RestoreCreationTime(stamp time.Time) { r.CreatedAt = stamp }
+func (r *endpointTestResource) SetLastUpdateTime()                  { r.UpdatedAt = time.Now().UTC() }
+func (r *endpointTestResource) SetLastUpdateTimeIn(*time.Location)  { r.SetLastUpdateTime() }
+func (r *endpointTestResource) GetCreationTimeField() string        { return "created_at" }
+func (r *endpointTestResource) GetLastUpdateTimeField() string      { return "updated_at" }
+
+type endpointGetResult struct {
+	element *endpointTestResource
+	found   bool
+	err     error
+}
+
+type endpointStorage struct {
+	mapping    *types.FieldsMapping
+	getResults []endpointGetResult
+	saved      *endpointTestResource
+	deleted    *endpointTestResource
+	restored   *endpointTestResource
+	pruned     *endpointTestResource
+	calls      []string
+}
+
+func newEndpointStorage() *endpointStorage {
+	return &endpointStorage{
+		mapping: types.NewFieldsMapping[int, *endpointTestResource](func(any) map[string]string {
+			return map[string]string{
+				"ID":       "id",
+				"ParentID": "parent_id",
+			}
+		}),
+	}
+}
+
+func (s *endpointStorage) Mapping() *types.FieldsMapping { return s.mapping }
+func (s *endpointStorage) GetElement(*types.FilterExpression) (*endpointTestResource, bool, error) {
+	s.calls = append(s.calls, "GetElement")
+	if len(s.getResults) == 0 {
+		return nil, false, nil
+	}
+
+	result := s.getResults[0]
+	s.getResults = s.getResults[1:]
+	return result.element, result.found, result.err
+}
+func (s *endpointStorage) GetElements(*types.FilterExpression, *types.SortExpression, int64, int64) ([]*endpointTestResource, int64, error) {
+	return nil, 0, nil
+}
+func (s *endpointStorage) Save(element **endpointTestResource) (bool, error) {
+	s.calls = append(s.calls, "Save")
+	s.saved = *element
+	return false, nil
+}
+func (s *endpointStorage) Delete(element **endpointTestResource) (bool, error) {
+	s.calls = append(s.calls, "Delete")
+	s.deleted = *element
+	return false, nil
+}
+func (s *endpointStorage) Restore(element **endpointTestResource) (bool, error) {
+	s.calls = append(s.calls, "Restore")
+	s.restored = *element
+	return false, nil
+}
+func (s *endpointStorage) Prune(element **endpointTestResource) (bool, error) {
+	s.calls = append(s.calls, "Prune")
+	s.pruned = *element
+	return false, nil
+}
+func (s *endpointStorage) ValidateFilter(*types.FilterExpression) error {
+	return nil
+}
+func (s *endpointStorage) ValidateSort(*types.SortExpression) error {
+	return nil
+}
+func (s *endpointStorage) AddIDFilter(*types.FilterExpression, int) {}
+func (s *endpointStorage) AddDeletedFilter(*types.FilterExpression, bool) {
+	s.calls = append(s.calls, "AddDeletedFilter")
+}
+
+type endpointTestContext struct {
+	stack           []any
+	contentType     string
+	bind            func(any) error
+	renderStatus    int
+	renderBody      any
+	noContentStatus int
+}
+
+func (c *endpointTestContext) Native() any                             { return nil }
+func (c *endpointTestContext) GetPathParam(string) (string, error)     { return "", nil }
+func (c *endpointTestContext) GetQueryParam(string) (string, error)    { return "", nil }
+func (c *endpointTestContext) GetQueryParams(string) ([]string, error) { return nil, nil }
+func (c *endpointTestContext) GetHeader(name string) (string, error) {
+	if name == "Content-Type" {
+		return c.contentType, nil
+	}
+	return "", nil
+}
+func (c *endpointTestContext) GetHeaders(string) ([]string, error) { return nil, nil }
+func (c *endpointTestContext) GetCookie(string) (Cookie, error)    { return Cookie{}, nil }
+func (c *endpointTestContext) BindJSON(target any) error {
+	if c.bind != nil {
+		return c.bind(target)
+	}
+	return nil
+}
+func (c *endpointTestContext) SetHeader(string, string)   {}
+func (c *endpointTestContext) SetCookie(Cookie)           {}
+func (c *endpointTestContext) GetData(string) (any, bool) { return nil, false }
+func (c *endpointTestContext) SetData(string, any)        {}
+func (c *endpointTestContext) PushElement(element any) {
+	c.stack = append([]any{element}, c.stack...)
+}
+func (c *endpointTestContext) PopElement() (any, bool) {
+	if len(c.stack) == 0 {
+		return nil, false
+	}
+	element := c.stack[0]
+	c.stack = c.stack[1:]
+	return element, true
+}
+func (c *endpointTestContext) PeekElement(index int) (any, bool) {
+	if index < 0 || index >= len(c.stack) {
+		return nil, false
+	}
+	return c.stack[index], true
+}
+func (c *endpointTestContext) RenderJSON(status int, body any) error {
+	c.renderStatus = status
+	c.renderBody = body
+	return nil
+}
+func (c *endpointTestContext) RenderNoContent(status int) error {
+	c.noContentStatus = status
+	return nil
+}
+func (c *endpointTestContext) CurrentService() any { return nil }
+func (c *endpointTestContext) CurrentEndpoint() (EndpointType, ResourceVerb, string) {
+	return EndpointVerb, ResourceGet, ""
+}
+func (c *endpointTestContext) Setup(any, EndpointType, ResourceVerb, string) {}
 
 type coreConstraintContext struct {
 	element     any
