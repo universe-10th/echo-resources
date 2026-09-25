@@ -44,6 +44,63 @@ func (r coreConstraintBadResource) SetLastUpdateTimeIn(*time.Location) {}
 func (r coreConstraintBadResource) GetCreationTimeField() string       { return "created_at" }
 func (r coreConstraintBadResource) GetLastUpdateTimeField() string     { return "updated_at" }
 
+func TestReadBindsJSONBody(t *testing.T) {
+	t.Parallel()
+
+	var element coreConstraintResource
+	context := coreConstraintContext{
+		contentType: "application/json; charset=utf-8",
+		bind: func(target any) error {
+			resource := target.(*coreConstraintResource)
+			resource.ID = 42
+			return nil
+		},
+	}
+	service := ResourceService[int, coreConstraintResource]{}
+
+	err := service.read(context, &element)
+	if err != nil {
+		t.Fatalf("read returned error: %v", err)
+	}
+	if element.ID != 42 {
+		t.Fatalf("expected ID 42, got %d", element.ID)
+	}
+}
+
+func TestReadUsesCustomReader(t *testing.T) {
+	t.Parallel()
+
+	var element coreConstraintResource
+	service := ResourceService[int, coreConstraintResource]{}
+	service.UsingReader(
+		func(context Context, element *coreConstraintResource) error {
+			element.ID = 84
+			return nil
+		},
+	)
+
+	err := service.read(coreConstraintContext{contentType: "application/json"}, &element)
+	if err != nil {
+		t.Fatalf("read returned error: %v", err)
+	}
+	if element.ID != 84 {
+		t.Fatalf("expected ID 84, got %d", element.ID)
+	}
+}
+
+func TestReadRejectsNonJSONContent(t *testing.T) {
+	t.Parallel()
+
+	var element coreConstraintResource
+	service := ResourceService[int, coreConstraintResource]{}
+
+	err := service.read(coreConstraintContext{contentType: "text/plain"}, &element)
+	var badRequest types.BadRequestError
+	if !errors.As(err, &badRequest) {
+		t.Fatalf("expected BadRequestError, got %T: %v", err, err)
+	}
+}
+
 func TestApplyPreviousConstraintSetsMappedField(t *testing.T) {
 	t.Parallel()
 
@@ -137,27 +194,39 @@ func (s coreConstraintStorage[IDT, RT]) AddIDFilter(*types.FilterExpression, IDT
 func (s coreConstraintStorage[IDT, RT]) AddDeletedFilter(*types.FilterExpression, bool) {}
 
 type coreConstraintContext struct {
-	element any
+	element     any
+	contentType string
+	bind        func(any) error
 }
 
 func (c coreConstraintContext) Native() any                             { return nil }
 func (c coreConstraintContext) GetPathParam(string) (string, error)     { return "", nil }
 func (c coreConstraintContext) GetQueryParam(string) (string, error)    { return "", nil }
 func (c coreConstraintContext) GetQueryParams(string) ([]string, error) { return nil, nil }
-func (c coreConstraintContext) GetHeader(string) (string, error)        { return "", nil }
-func (c coreConstraintContext) GetHeaders(string) ([]string, error)     { return nil, nil }
-func (c coreConstraintContext) GetCookie(string) (Cookie, error)        { return Cookie{}, nil }
-func (c coreConstraintContext) BindJSON(any) error                      { return nil }
-func (c coreConstraintContext) SetHeader(string, string)                {}
-func (c coreConstraintContext) SetCookie(Cookie)                        {}
-func (c coreConstraintContext) GetData(string) (any, bool)              { return nil, false }
-func (c coreConstraintContext) SetData(string, any)                     {}
-func (c coreConstraintContext) PushElement(any)                         {}
-func (c coreConstraintContext) PopElement() (any, bool)                 { return nil, false }
-func (c coreConstraintContext) PeekElement(int) (any, bool)             { return c.element, c.element != nil }
-func (c coreConstraintContext) RenderJSON(int, any) error               { return nil }
-func (c coreConstraintContext) RenderNoContent(int) error               { return nil }
-func (c coreConstraintContext) CurrentService() any                     { return nil }
+func (c coreConstraintContext) GetHeader(name string) (string, error) {
+	if name == "Content-Type" {
+		return c.contentType, nil
+	}
+	return "", nil
+}
+func (c coreConstraintContext) GetHeaders(string) ([]string, error) { return nil, nil }
+func (c coreConstraintContext) GetCookie(string) (Cookie, error)    { return Cookie{}, nil }
+func (c coreConstraintContext) BindJSON(target any) error {
+	if c.bind != nil {
+		return c.bind(target)
+	}
+	return nil
+}
+func (c coreConstraintContext) SetHeader(string, string)    {}
+func (c coreConstraintContext) SetCookie(Cookie)            {}
+func (c coreConstraintContext) GetData(string) (any, bool)  { return nil, false }
+func (c coreConstraintContext) SetData(string, any)         {}
+func (c coreConstraintContext) PushElement(any)             {}
+func (c coreConstraintContext) PopElement() (any, bool)     { return nil, false }
+func (c coreConstraintContext) PeekElement(int) (any, bool) { return c.element, c.element != nil }
+func (c coreConstraintContext) RenderJSON(int, any) error   { return nil }
+func (c coreConstraintContext) RenderNoContent(int) error   { return nil }
+func (c coreConstraintContext) CurrentService() any         { return nil }
 func (c coreConstraintContext) CurrentEndpoint() (EndpointType, ResourceVerb, string) {
 	return EndpointVerb, ResourceGet, ""
 }
