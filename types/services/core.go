@@ -226,6 +226,26 @@ func (service ResourceService[IDT, RT]) PageRenderer() PageRendererFunc[IDT, RT]
 	return service.pageRenderer
 }
 
+// RenderElement renders a single element, perhaps using the renderer.
+func (service ResourceService[IDT, RT]) RenderElement(context Context, status int, element RT) error {
+	if service.elementRenderer != nil {
+		return service.elementRenderer(context, element)
+	}
+	return context.RenderJSON(status, element)
+}
+
+// RenderPage renders a page of elements, perhaps using the renderer.
+func (service ResourceService[IDT, RT]) RenderPage(context Context, status int, elements []RT, page int64, totalPages int64) error {
+	if service.pageRenderer != nil {
+		return service.pageRenderer(context, elements, page, totalPages)
+	}
+	return context.RenderJSON(status, map[string]any{
+		"elements":   elements,
+		"page":       page,
+		"totalPages": totalPages,
+	})
+}
+
 // UsingPageSize sets the amount of elements being listed per page.
 func (service *ResourceService[IDT, RT]) UsingPageSize(pageSize int64) *ResourceService[IDT, RT] {
 	if pageSize <= 0 {
