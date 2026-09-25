@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding"
 	"reflect"
 	"strconv"
 )
@@ -140,7 +141,7 @@ type Context interface {
 // parameter scalar types.
 func ParsePathParam[T comparable](v string) (T, error) {
 	var zero T
-	valueType := reflect.TypeOf(zero)
+	valueType := reflect.TypeFor[T]()
 
 	switch valueType.Kind() {
 	case reflect.String:
@@ -159,7 +160,23 @@ func ParsePathParam[T comparable](v string) (T, error) {
 		}
 
 		return reflect.ValueOf(parsed).Convert(valueType).Interface().(T), nil
+	case reflect.Bool:
+		parsed, err := strconv.ParseBool(v)
+		if err != nil {
+			return zero, err
+		}
+
+		return reflect.ValueOf(parsed).Convert(valueType).Interface().(T), nil
 	default:
-		return zero, strconv.ErrSyntax
+		parsed := zero
+		unmarshaler, ok := any(&parsed).(encoding.TextUnmarshaler)
+		if !ok {
+			return zero, strconv.ErrSyntax
+		}
+		if err := unmarshaler.UnmarshalText([]byte(v)); err != nil {
+			return zero, err
+		}
+
+		return parsed, nil
 	}
 }

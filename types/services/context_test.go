@@ -1,10 +1,20 @@
 package services
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
 
 type testPathInt int16
 type testPathUint uint32
 type testPathString string
+type testPathBool bool
+type testUnsupportedPathParam struct {
+	value string
+}
 
 func TestParsePathParamParsesSupportedTypes(t *testing.T) {
 	t.Parallel()
@@ -31,6 +41,14 @@ func TestParsePathParamParsesSupportedTypes(t *testing.T) {
 	}
 	if uintValue != 42 {
 		t.Fatalf("unexpected uint16 value: %d", uintValue)
+	}
+
+	boolValue, err := ParsePathParam[bool]("true")
+	if err != nil {
+		t.Fatalf("ParsePathParam[bool] returned error: %v", err)
+	}
+	if !boolValue {
+		t.Fatal("unexpected bool value: false")
 	}
 }
 
@@ -60,6 +78,45 @@ func TestParsePathParamParsesDefinedTypes(t *testing.T) {
 	if uintValue != 123 {
 		t.Fatalf("unexpected defined uint value: %d", uintValue)
 	}
+
+	boolValue, err := ParsePathParam[testPathBool]("true")
+	if err != nil {
+		t.Fatalf("ParsePathParam[testPathBool] returned error: %v", err)
+	}
+	if !boolValue {
+		t.Fatal("unexpected defined bool value: false")
+	}
+}
+
+func TestParsePathParamParsesTextUnmarshalers(t *testing.T) {
+	t.Parallel()
+
+	timestamp := time.Date(2026, 9, 25, 10, 30, 0, 0, time.UTC)
+	timeValue, err := ParsePathParam[time.Time](timestamp.Format(time.RFC3339))
+	if err != nil {
+		t.Fatalf("ParsePathParam[time.Time] returned error: %v", err)
+	}
+	if !timeValue.Equal(timestamp) {
+		t.Fatalf("unexpected time value: %s", timeValue.Format(time.RFC3339))
+	}
+
+	uuidValue := uuid.New()
+	parsedUUID, err := ParsePathParam[uuid.UUID](uuidValue.String())
+	if err != nil {
+		t.Fatalf("ParsePathParam[uuid.UUID] returned error: %v", err)
+	}
+	if parsedUUID != uuidValue {
+		t.Fatalf("unexpected UUID value: %s", parsedUUID)
+	}
+
+	objectID := bson.NewObjectID()
+	parsedObjectID, err := ParsePathParam[bson.ObjectID](objectID.Hex())
+	if err != nil {
+		t.Fatalf("ParsePathParam[bson.ObjectID] returned error: %v", err)
+	}
+	if parsedObjectID != objectID {
+		t.Fatalf("unexpected ObjectID value: %s", parsedObjectID.Hex())
+	}
 }
 
 func TestParsePathParamRejectsInvalidNumbers(t *testing.T) {
@@ -76,5 +133,21 @@ func TestParsePathParamRejectsInvalidNumbers(t *testing.T) {
 	}
 	if _, err := ParsePathParam[uint8]("256"); err == nil {
 		t.Fatal("expected out-of-range unsigned integer to return an error")
+	}
+}
+
+func TestParsePathParamRejectsInvalidTextUnmarshalerValue(t *testing.T) {
+	t.Parallel()
+
+	if _, err := ParsePathParam[uuid.UUID]("not-a-uuid"); err == nil {
+		t.Fatal("expected invalid UUID to return an error")
+	}
+}
+
+func TestParsePathParamRejectsUnsupportedComparableTypes(t *testing.T) {
+	t.Parallel()
+
+	if _, err := ParsePathParam[testUnsupportedPathParam]("value"); err == nil {
+		t.Fatal("expected unsupported comparable type to return an error")
 	}
 }
