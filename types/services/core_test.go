@@ -109,11 +109,12 @@ func TestMustAttachToLinksParentAndChild(t *testing.T) {
 		urlArg: "parent_id",
 	}
 	child := ResourceService[int, coreConstraintResource]{
-		prefix: "children",
-		urlArg: "child_id",
+		prefix:  "children",
+		urlArg:  "child_id",
+		storage: newCoreConstraintStorage[int, coreConstraintResource](),
 	}
 
-	child.MustAttachTo(&parent)
+	child.MustAttachTo(&parent, "parent_id")
 
 	if child.Parent() != &parent {
 		t.Fatal("expected child parent to be set")
@@ -136,13 +137,14 @@ func TestAttachToReturnsErrorForCycle(t *testing.T) {
 		urlArg: "parent_id",
 	}
 	child := ResourceService[int, coreConstraintResource]{
-		prefix: "children",
-		urlArg: "child_id",
+		prefix:  "children",
+		urlArg:  "child_id",
+		storage: newCoreConstraintStorage[int, coreConstraintResource](),
 	}
 
-	child.MustAttachTo(&parent)
+	child.MustAttachTo(&parent, "parent_id")
 
-	err := parent.AttachTo(&child)
+	err := parent.AttachTo(&child, "parent_id")
 	if !errors.Is(err, ErrCyclicServiceAttachment) {
 		t.Fatalf("expected ErrCyclicServiceAttachment, got %v", err)
 	}
@@ -160,9 +162,28 @@ func TestAttachToReturnsErrorForDuplicateURLArgInParentPath(t *testing.T) {
 		urlArg: "id",
 	}
 
-	err := child.AttachTo(&parent)
+	err := child.AttachTo(&parent, "parent_id")
 	if !errors.Is(err, ErrConflictingServiceURLArg) {
 		t.Fatalf("expected ErrConflictingServiceURLArg, got %v", err)
+	}
+}
+
+func TestAttachToReturnsErrorForInvalidConstraintJSONField(t *testing.T) {
+	t.Parallel()
+
+	parent := ResourceService[int, coreConstraintResource]{
+		prefix: "parents",
+		urlArg: "parent_id",
+	}
+	child := ResourceService[int, coreConstraintResource]{
+		prefix:  "children",
+		urlArg:  "child_id",
+		storage: newCoreConstraintStorage[int, coreConstraintResource](),
+	}
+
+	err := child.AttachTo(&parent, "missing")
+	if !errors.Is(err, ErrInvalidConstraintJSONField) {
+		t.Fatalf("expected ErrInvalidConstraintJSONField, got %v", err)
 	}
 }
 

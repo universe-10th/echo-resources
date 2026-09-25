@@ -20,6 +20,7 @@ var (
 	ErrInvalidParentService        = errors.New("invalid parent service")
 	ErrCyclicServiceAttachment     = errors.New("cyclic service attachment")
 	ErrConflictingServiceURLArg    = errors.New("conflicting service URL arg")
+	ErrInvalidConstraintJSONField  = errors.New("invalid constraint JSON field")
 	logger                         = slog.Default()
 	defaultCollectionResourceVerbs = NewResourceVerbs(
 		ResourceGet, ResourceList,
@@ -398,7 +399,7 @@ func (service *ResourceService[IDT, RT]) addChild(child Service) {
 //     the current service is in the path (causing a cycle), or
 //     the current service is a Collection and also the URL Arg
 //     of the current service is found while traversing.
-func (service *ResourceService[IDT, RT]) MustAttachTo(s Service) {
+func (service *ResourceService[IDT, RT]) MustAttachTo(s Service, constraintJSONField string) {
 	if s == nil {
 		panic(ErrInvalidParentService)
 	}
@@ -414,7 +415,10 @@ func (service *ResourceService[IDT, RT]) MustAttachTo(s Service) {
 	}
 
 	if !s.IsSingleton() {
-		service.constraintJSONField = s.URLArg()
+		if service.storage == nil || types.FieldForJSON(service.storage.Mapping(), constraintJSONField) == "" {
+			panic(ErrInvalidConstraintJSONField)
+		}
+		service.constraintJSONField = constraintJSONField
 	}
 	service.parentService = s
 	if appender, ok := s.(childAppender); ok {
@@ -425,7 +429,7 @@ func (service *ResourceService[IDT, RT]) MustAttachTo(s Service) {
 // AttachTo attaches the current service to another service. It
 // fails on the same conditions MustAttach fails, but returns
 // an error instead of panicking.
-func (service *ResourceService[IDT, RT]) AttachTo(s Service) (err error) {
+func (service *ResourceService[IDT, RT]) AttachTo(s Service, constraintJSONField string) (err error) {
 	defer func() {
 		if v := recover(); v != nil {
 			if err2, ok := v.(error); ok {
@@ -434,7 +438,7 @@ func (service *ResourceService[IDT, RT]) AttachTo(s Service) (err error) {
 		}
 	}()
 
-	service.MustAttachTo(s)
+	service.MustAttachTo(s, constraintJSONField)
 	return nil
 }
 
