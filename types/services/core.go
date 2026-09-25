@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 
 	"github.com/universe-10th/echo-resources/types"
 	"github.com/universe-10th/echo-resources/utils"
@@ -52,10 +53,10 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 	// current resource.
 	urlArg string
 
-	// The constraintDBField is used when the resource is child of
+	// The constraintJSONField is used when the resource is child of
 	// another resource: it's the JSON name of a field to look up,
 	// as part of the current filter lookup.
-	constraintDBField string
+	constraintJSONField string
 
 	// The verbs field tells which verbs will be considered for
 	// the resource.
@@ -224,7 +225,24 @@ func (service ResourceService[IDT, RT]) PageSize() int64 {
 
 // Here is where the utility functions for the middleware start.
 
-// MakeElementFilter assembles a filter from the current request.
+// getConstraintElement gets the element at the last constraint level.
+func (service ResourceService[IDT, RT]) getConstraintElement(context Context) (*RT, error) {
+	lastRaw, exists := context.PeekElement()
+	if !exists {
+		logger.Error("no element in context stack - provably called outside element middleware")
+		return nil, types.InternalError{}
+	}
+
+	last, ok := lastRaw.(*RT)
+	if !ok {
+		logger.Error("invalid element in context stack - provably called outside element middleware")
+		return nil, types.InternalError{}
+	}
+
+	return last, nil
+}
+
+// makeElementFilter assembles a filter from the current request.
 func (service ResourceService[IDT, RT]) makeElementFilter(context Context, deleted bool) (
 	*types.FilterExpression, IDT, error,
 ) {
@@ -259,22 +277,15 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 	}
 
 	// Then, add a constraint, if any.
-	if service.constraintDBField != "" {
-		lastRaw, exists := context.PopElement()
-		if !exists {
-			logger.Error("unbalanced context stack operation (PopElement without previous matching PushElement)")
-			return nil, id, types.InternalError{}
-		}
-
-		last, ok := lastRaw.(*RT)
-		if !ok {
-			logger.Error("PopElement retrieved a invalid element (possible PushElement/PopElement imbalance)")
-			return nil, id, types.InternalError{}
+	if service.constraintJSONField != "" {
+		last, err := service.getConstraintElement(context)
+		if err != nil {
+			return nil, id, err
 		}
 
 		filter.Restrict(&types.FilterExpression{
 			Operator:    types.FilterEQ,
-			Field:       service.constraintDBField,
+			Field:       service.constraintJSONField,
 			Value:       (*last).GetID(),
 			Expressions: nil,
 		})
@@ -290,4 +301,84 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 
 	// And return.
 	return &filter, id, nil
+}
+
+// applyConstraint applies the current constraint to the element, so it's
+// always consistent.
+func (service ResourceService[IDT, RT]) applyConstraint(context Context, element *RT) error {
+	if service.constraintJSONField != "" {
+		last, err := service.getConstraintElement(context)
+		if err != nil {
+			return err
+		}
+
+		fieldName := types.FieldForJSON(service.storage.Mapping(), service.constraintJSONField)
+		if fieldName == "" {
+			logger.Error(
+				"constraint field is not mapped in resource",
+				"prefix", service.prefix,
+				"field", service.constraintJSONField,
+			)
+			return types.InternalError{}
+		}
+
+		if err := setElementField(element, fieldName, (*last).GetID()); err != nil {
+			logger.Error(
+				"could not apply constraint to resource element",
+				"prefix", service.prefix,
+				"field", service.constraintJSONField,
+				"struct_field", fieldName,
+				"error", err,
+			)
+			return types.InternalError{}
+		}
+	}
+
+	return nil
+}
+
+func setElementField(element any, fieldName string, value any) error {
+	if element == nil {
+		return errors.New("element is nil")
+	}
+
+	elementValue := reflect.ValueOf(element)
+	if elementValue.Kind() != reflect.Pointer || elementValue.IsNil() {
+		return errors.New("element must be a non-nil pointer")
+	}
+
+	valueValue := reflect.ValueOf(value)
+	if !valueValue.IsValid() {
+		return errors.New("constraint value is invalid")
+	}
+
+	for elementValue.Kind() == reflect.Pointer {
+		if elementValue.IsNil() {
+			return errors.New("element contains nil pointer")
+		}
+		elementValue = elementValue.Elem()
+	}
+
+	if elementValue.Kind() != reflect.Struct {
+		return errors.New("element must point to a struct")
+	}
+
+	fieldValue := elementValue.FieldByName(fieldName)
+	if !fieldValue.IsValid() {
+		return fmt.Errorf("field %q not found", fieldName)
+	}
+	if !fieldValue.CanSet() {
+		return fmt.Errorf("field %q cannot be set", fieldName)
+	}
+
+	if valueValue.Type().AssignableTo(fieldValue.Type()) {
+		fieldValue.Set(valueValue)
+		return nil
+	}
+	if valueValue.Kind() == fieldValue.Kind() && valueValue.Type().ConvertibleTo(fieldValue.Type()) {
+		fieldValue.Set(valueValue.Convert(fieldValue.Type()))
+		return nil
+	}
+
+	return fmt.Errorf("value of type %s cannot be assigned to field %q of type %s", valueValue.Type(), fieldName, fieldValue.Type())
 }
