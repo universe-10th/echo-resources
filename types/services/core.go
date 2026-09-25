@@ -296,7 +296,8 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 
 	// Finally, validate the filter.
 	if err := service.storage.ValidateFilter(&filter); err != nil {
-		return nil, id, types.BadRequestError{}
+		logger.Error("invalid filter (should be fixed, since the user is not choosing this one)")
+		return nil, id, types.InternalError{}
 	}
 
 	// And return.
