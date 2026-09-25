@@ -44,7 +44,7 @@ func (r coreConstraintBadResource) SetLastUpdateTimeIn(*time.Location) {}
 func (r coreConstraintBadResource) GetCreationTimeField() string       { return "created_at" }
 func (r coreConstraintBadResource) GetLastUpdateTimeField() string     { return "updated_at" }
 
-func TestApplyConstraintSetsMappedField(t *testing.T) {
+func TestApplyPreviousConstraintSetsMappedField(t *testing.T) {
 	t.Parallel()
 
 	parent := coreConstraintResource{ID: 42}
@@ -55,9 +55,9 @@ func TestApplyConstraintSetsMappedField(t *testing.T) {
 		constraintJSONField: "parent_id",
 	}
 
-	err := service.applyConstraint(coreConstraintContext{element: &parent}, &element)
+	err := service.applyPreviousConstraint(coreConstraintContext{element: &parent}, &element)
 	if err != nil {
-		t.Fatalf("applyConstraint returned error: %v", err)
+		t.Fatalf("applyPreviousConstraint returned error: %v", err)
 	}
 	if element.ParentID != parent.ID {
 		t.Fatalf("expected ParentID %d, got %d", parent.ID, element.ParentID)
@@ -75,7 +75,7 @@ func TestApplyConstraintReturnsInternalErrorForUnmappedField(t *testing.T) {
 		constraintJSONField: "missing",
 	}
 
-	err := service.applyConstraint(coreConstraintContext{element: &parent}, &element)
+	err := service.applyPreviousConstraint(coreConstraintContext{element: &parent}, &element)
 	var internal types.InternalError
 	if !errors.As(err, &internal) {
 		t.Fatalf("expected InternalError, got %T: %v", err, err)
@@ -93,7 +93,7 @@ func TestApplyConstraintReturnsInternalErrorForIncompatibleField(t *testing.T) {
 		constraintJSONField: "parent_id",
 	}
 
-	err := service.applyConstraint(coreConstraintContext{element: &parent}, &element)
+	err := service.applyPreviousConstraint(coreConstraintContext{element: &parent}, &element)
 	var internal types.InternalError
 	if !errors.As(err, &internal) {
 		t.Fatalf("expected InternalError, got %T: %v", err, err)
@@ -154,7 +154,7 @@ func (c coreConstraintContext) GetData(string) (any, bool)              { return
 func (c coreConstraintContext) SetData(string, any)                     {}
 func (c coreConstraintContext) PushElement(any)                         {}
 func (c coreConstraintContext) PopElement() (any, bool)                 { return nil, false }
-func (c coreConstraintContext) PeekElement() (any, bool)                { return c.element, c.element != nil }
+func (c coreConstraintContext) PeekElement(int) (any, bool)             { return c.element, c.element != nil }
 func (c coreConstraintContext) RenderJSON(int, any) error               { return nil }
 func (c coreConstraintContext) RenderNoContent(int) error               { return nil }
 func (c coreConstraintContext) CurrentService() any                     { return nil }

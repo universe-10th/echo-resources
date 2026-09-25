@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/labstack/echo/v4"
 	"github.com/universe-10th/echo-resources/types"
 	"github.com/universe-10th/echo-resources/utils"
 )
@@ -274,9 +273,9 @@ func (service ResourceService[IDT, RT]) PageSize() int64 {
 
 // Here is where the utility functions for the middleware start.
 
-// getConstraintElement gets the element at the last constraint level.
-func (service ResourceService[IDT, RT]) getConstraintElement(context Context) (*RT, error) {
-	lastRaw, exists := context.PeekElement()
+// getStackedElement gets the element at the last constraint level.
+func (service ResourceService[IDT, RT]) getStackedElement(context Context, index int) (*RT, error) {
+	lastRaw, exists := context.PeekElement(index)
 	if !exists {
 		logger.Error("no element in context stack - provably called outside element middleware")
 		return nil, types.InternalError{}
@@ -327,7 +326,9 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 
 	// Then, add a constraint, if any.
 	if service.constraintJSONField != "" {
-		last, err := service.getConstraintElement(context)
+		// We use index 0 since the idea is to get the constraint
+		// based on the current (last) element.
+		last, err := service.getStackedElement(context, 0)
 		if err != nil {
 			return nil, id, err
 		}
@@ -353,11 +354,14 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 	return &filter, id, nil
 }
 
-// applyConstraint applies the current constraint to the element, so it's
+// applyPreviousConstraint applies the current constraint to the element, so it's
 // always consistent.
-func (service ResourceService[IDT, RT]) applyConstraint(context Context, element *RT) error {
+func (service ResourceService[IDT, RT]) applyPreviousConstraint(context Context, element *RT) error {
 	if service.constraintJSONField != "" {
-		last, err := service.getConstraintElement(context)
+		// We use index 1 since we want to get not the current
+		// element but the PREVIOUS one instead.
+
+		last, err := service.getStackedElement(context, 1)
 		if err != nil {
 			return err
 		}
@@ -433,7 +437,17 @@ func setElementField(element any, fieldName string, value any) error {
 	return fmt.Errorf("value of type %s cannot be assigned to field %q of type %s", valueValue.Type(), fieldName, fieldValue.Type())
 }
 
-// Endpoint implementation
-func (service ResourceService[IDT, RT]) get(context echo.Context) error {
+// The get function is an endpoint to get a single element.
+// Pre-requisites: elementMiddleware(false) middleware for GET.
+//
+//	elementMiddleware(true) middleware for GET DELETED.
+func (service ResourceService[IDT, RT]) get(context Context) error {
+	// 1. Get the element.
+	element, err := service.getStackedElement(context, 0)
+	if err != nil {
+		return err
+	}
 
+	// 2. Render it.
+	return service.RenderElement(context, 200, *element)
 }
