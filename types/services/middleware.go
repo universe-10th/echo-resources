@@ -6,11 +6,11 @@ import (
 	"github.com/universe-10th/echo-resources/types"
 )
 
-// setupMiddleware is used for ALL the endpoints registered in
+// StupMiddleware is used for ALL the endpoints registered in
 // a resource. Useful for particular middleware functions that
 // need to detect the current endpoint, and registered prior
 // to any other middleware functions given to the resource.
-func setupMiddleware[IDT comparable, RT types.Resource[IDT]](
+func StupMiddleware[IDT comparable, RT types.Resource[IDT]](
 	service *ResourceService[IDT, RT],
 	endpointType EndpointType,
 	verb ResourceVerb,
@@ -38,13 +38,13 @@ func renderErrorOr(context Context, err error, defaultError types.Error) error {
 	return context.RenderJSON(int(code), content)
 }
 
-// elementMiddleware will be the FIRST middleware installed
+// ElementMiddleware will be the FIRST middleware installed
 // in the per-element (deleted or not) endpoints (either for
 // a collection or for singleton). And it will go down for
 // all the derived elements as well (they will exist under
 // the GET + non-deleted verb). It will also be used in the
 // per-element custom actions.
-func elementMiddleware[IDT comparable, RT types.Resource[IDT]](deleted bool) MiddlewareFunc {
+func ElementMiddleware[IDT comparable, RT types.Resource[IDT]](deleted bool) MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(context Context) error {
 			// 1. Get the service. If, for some reason, it is not properly

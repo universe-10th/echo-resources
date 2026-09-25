@@ -69,6 +69,60 @@ type Service interface {
 
 	// Parent tells the parent of the current service.
 	Parent() Service
+
+	Middlewares() []MiddlewareFunc
+
+	// List defines an endpoint. Used only for COLLECTION resources and
+	// installed, in its level, in: .../{prefix} -> List(context, false)
+	// for live elements, or .../{prefix}/deleted -> List(context, true).
+	// In both cases, using GET method. The latter case is not created if
+	// RT is not SoftDeletedResource.
+	List(Context, bool) error
+
+	// Create defines an endpoint. The endpoint is POST .../{prefix}.
+	Create(Context) error
+
+	// Get defines an endpoint. The endpoint is GET .../{prefix}/{id} or
+	// /{prefix}/deleted/{id}. In both cases, when registered, it will
+	// belong to a group where the ElementMiddleware(deleted) will be
+	// used (first case with false; second case with true).
+	//
+	// It is just GET .../{prefix} and .../{prefix}/deleted for singleton
+	// resources.
+	//
+	// The /deleted case is not created if RT is not SoftDeletedResource.
+	Get(Context) error
+
+	// Update defines an endpoint. The endpoint is PATCH .../{prefix}/{id}.
+	// It will belong to a group with ElementMiddleware(false) will be used.
+	//
+	// It is just PATCH .../{prefix} for singleton resources.
+	Update(Context) error
+
+	// Delete defines an endpoint. The endpoint is DELETE .../{prefix}/{id}.
+	// It will belong to a group with ElementMiddleware(false) will be used.
+	//
+	// It is just DELETE .../{prefix} for singleton resources.
+	Delete(Context) error
+
+	// Prune defines an endpoint. Used when RT is a SoftDeletedResource, and
+	// ignored otherwise. The endpoint is DELETE .../{prefix}/deleted/{id}.
+	// It will belong to a group where ElementMiddleware(true) will be used.
+	//
+	// It is just DELETE .../{prefix}/deleted for singleton resources.
+	//
+	// This endpoint is not created if RT is not SoftDeletedResource.
+	Prune(Context) error
+
+	// Restore defines an endpoint. Used when RT is a SoftDeletedResource,
+	// and ignored otherwise. The endpoint is POST .../{prefix}/deleted/{id}.
+	// It will belong to a group where ElementMiddleware(true) will be
+	// used.
+	//
+	// It is just POST .../{prefix}/deleted for singleton resources.
+	//
+	// This endpoint is not created if RT is not SoftDeletedResource.
+	Restore(Context) error
 }
 
 // ResourceService describes a service that relates to elements
@@ -291,6 +345,16 @@ func (service *ResourceService[IDT, RT]) UsingMiddlewares(middlewares ...Middlew
 	return service
 }
 
+// Middlewares returns the list of middlewares used.
+func (service ResourceService[IDT, RT]) Middlewares() []MiddlewareFunc {
+	if service.middlewares == nil {
+		return nil
+	}
+	middlewares := make([]MiddlewareFunc, len(service.middlewares))
+	copy(middlewares, service.middlewares)
+	return middlewares
+}
+
 // UsingElementRenderer sets what's the element renderer.
 func (service *ResourceService[IDT, RT]) UsingElementRenderer(elementRenderer ElementRendererFunc[IDT, RT]) *ResourceService[IDT, RT] {
 	service.elementRenderer = elementRenderer
@@ -417,7 +481,9 @@ func (service *ResourceService[IDT, RT]) MustAttachTo(s Service, constraintJSONF
 	if !s.IsSingleton() {
 		if service.storage == nil || types.FieldForJSON(service.storage.Mapping(), constraintJSONField) == "" {
 			panic(ErrInvalidConstraintJSONField)
-		}
+		} //
+		// This endpoint is not created if RT is not SoftDeletedResource.
+
 		service.constraintJSONField = constraintJSONField
 	}
 	service.parentService = s
@@ -841,11 +907,11 @@ func containsAllowedField(fields []string, field string) bool {
 	return false
 }
 
-// The get function is an endpoint to get a single element.
+// The Get function is an endpoint to get a single element.
 // Pre-requisites:
-// - elementMiddleware(false) middleware for GET.
-// - elementMiddleware(true) middleware for GET DELETED.
-func (service ResourceService[IDT, RT]) get(context Context) error {
+// - ElementMiddleware(false) middleware for GET.
+// - ElementMiddleware(true) middleware for GET DELETED.
+func (service ResourceService[IDT, RT]) Get(context Context) error {
 	// 1. Get the element.
 	element, err := service.getStackedElement(context, 0)
 	if err != nil {
@@ -856,9 +922,9 @@ func (service ResourceService[IDT, RT]) get(context Context) error {
 	return service.RenderElement(context, 200, element)
 }
 
-// The update function is an endpoint to update an existing non-deleted element.
-// Pre-requisites: elementMiddleware(false) middleware.
-func (service ResourceService[IDT, RT]) update(context Context) error {
+// The Update function is an endpoint to update an existing non-deleted element.
+// Pre-requisites: ElementMiddleware(false) middleware.
+func (service ResourceService[IDT, RT]) Update(context Context) error {
 	element, err := service.getStackedElement(context, 0)
 	if err != nil {
 		return err
@@ -891,8 +957,8 @@ func (service ResourceService[IDT, RT]) update(context Context) error {
 	return service.RenderElement(context, 200, element)
 }
 
-// The create function is an endpoint to create a new element.
-func (service ResourceService[IDT, RT]) create(context Context) error {
+// The Create function is an endpoint to create a new element.
+func (service ResourceService[IDT, RT]) Create(context Context) error {
 	allowed, err := service.ensureSingletonCreateAllowed(context)
 	if err != nil || !allowed {
 		return err
@@ -924,9 +990,9 @@ func (service ResourceService[IDT, RT]) create(context Context) error {
 	return service.RenderElement(context, 201, element)
 }
 
-// The delete function is an endpoint to delete an existing non-deleted element.
-// Pre-requisites: elementMiddleware(false) middleware.
-func (service ResourceService[IDT, RT]) delete(context Context) error {
+// The Delete function is an endpoint to delete an existing non-deleted element.
+// Pre-requisites: ElementMiddleware(false) middleware.
+func (service ResourceService[IDT, RT]) Delete(context Context) error {
 	element, err := service.getStackedElement(context, 0)
 	if err != nil {
 		return err
@@ -941,9 +1007,9 @@ func (service ResourceService[IDT, RT]) delete(context Context) error {
 	return context.RenderNoContent(204)
 }
 
-// The prune function is an endpoint to permanently delete an existing deleted
-// element. Pre-requisites: elementMiddleware(true) middleware.
-func (service ResourceService[IDT, RT]) prune(context Context) error {
+// The Prune function is an endpoint to permanently delete an existing deleted
+// element. Pre-requisites: ElementMiddleware(true) middleware.
+func (service ResourceService[IDT, RT]) Prune(context Context) error {
 	element, err := service.getStackedElement(context, 0)
 	if err != nil {
 		return err
@@ -958,9 +1024,9 @@ func (service ResourceService[IDT, RT]) prune(context Context) error {
 	return context.RenderNoContent(204)
 }
 
-// The restore function is an endpoint to restore an existing deleted element.
-// Pre-requisites: elementMiddleware(true) middleware.
-func (service ResourceService[IDT, RT]) restore(context Context) error {
+// The Restore function is an endpoint to restore an existing deleted element.
+// Pre-requisites: ElementMiddleware(true) middleware.
+func (service ResourceService[IDT, RT]) Restore(context Context) error {
 	element, err := service.getStackedElement(context, 0)
 	if err != nil {
 		return err
@@ -975,10 +1041,10 @@ func (service ResourceService[IDT, RT]) restore(context Context) error {
 	return service.RenderElement(context, 200, element)
 }
 
-// The list function is an endpoint to list existing non-deleted or deleted
+// The List function is an endpoint to list existing non-deleted or deleted
 // elements. Use deleted=false for ResourceList and deleted=true for
 // ResourceListDeleted.
-func (service ResourceService[IDT, RT]) list(context Context, deleted bool) error {
+func (service ResourceService[IDT, RT]) List(context Context, deleted bool) error {
 	fields, allowance := service.allowedFieldsFor(context)
 
 	filter, err := service.parseListFilter(context, fields, allowance)
