@@ -240,6 +240,10 @@ type Service interface {
 	// It is implemented as: Verbs() including ResourceGet.
 	CanHaveChildren() bool
 
+	// IsSoftDeleted tells whether the underlying resource supports
+	// soft-deletion endpoints.
+	IsSoftDeleted() bool
+
 	// Children tells the services that are children of this service.
 	Children() []Service
 
@@ -258,6 +262,9 @@ type Service interface {
 	//    and /{prefix}/deleted/{id}, right after the SetupMiddleware
 	//    and all the other middlewares.
 	Middlewares() []MiddlewareFunc
+
+	// ElementMiddleware returns the typed element middleware for this service.
+	ElementMiddleware(deleted bool) MiddlewareFunc
 
 	// List defines an endpoint. Used only for COLLECTION resources and
 	// installed, in its level, in: .../{prefix} -> List(context, false)
@@ -401,6 +408,13 @@ func (service ResourceService[IDT, RT]) Storage() types.Storage[IDT, RT] {
 // or not (i.e. is a resource).
 func (service ResourceService[IDT, RT]) IsSingleton() bool {
 	return service.singleton
+}
+
+// IsSoftDeleted tells whether the current resource supports soft-deletion.
+func (service ResourceService[IDT, RT]) IsSoftDeleted() bool {
+	var resource RT
+	_, ok := any(resource).(types.SoftDeletedResource[IDT])
+	return ok
 }
 
 // URLArg tells the name of the argument used to capture the
@@ -618,7 +632,12 @@ func (service ResourceService[IDT, RT]) PageSize() int64 {
 // CanHaveChildren tells whether a service can register children
 // (by other services registering as children of it).
 func (service ResourceService[IDT, RT]) CanHaveChildren() bool {
-	return service.verbs.Has(ResourceGet)
+	return service.Verbs().Has(ResourceGet)
+}
+
+// ElementMiddleware returns the typed element middleware for this service.
+func (service *ResourceService[IDT, RT]) ElementMiddleware(deleted bool) MiddlewareFunc {
+	return ElementMiddleware[IDT, RT](deleted)
 }
 
 type childAppender interface {
