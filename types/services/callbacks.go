@@ -1,6 +1,6 @@
 package services
 
-import "github.com/universe-10th/echo-resources/types"
+import "github.com/universe-10th/rest-resources/types"
 
 // Allowance is the type of allowance when dealing with
 // which fields are allowed for a user to filter or sort

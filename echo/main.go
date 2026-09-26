@@ -6,8 +6,8 @@ import (
 	"reflect"
 
 	echov4 "github.com/labstack/echo/v4"
-	"github.com/universe-10th/echo-resources/types/services"
-	"github.com/universe-10th/echo-resources/utils"
+	"github.com/universe-10th/rest-resources/types/services"
+	"github.com/universe-10th/rest-resources/utils"
 )
 
 var (

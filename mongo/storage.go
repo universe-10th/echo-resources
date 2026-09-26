@@ -5,8 +5,8 @@ import (
 	"errors"
 	"reflect"
 
-	mongotypes "github.com/universe-10th/echo-resources/mongo/types"
-	"github.com/universe-10th/echo-resources/types"
+	mongotypes "github.com/universe-10th/rest-resources/mongo/types"
+	"github.com/universe-10th/rest-resources/types"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	drivermongo "go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"

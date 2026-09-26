@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/universe-10th/echo-resources/types"
-	"github.com/universe-10th/echo-resources/utils"
+	"github.com/universe-10th/rest-resources/types"
+	"github.com/universe-10th/rest-resources/utils"
 )
 
 // ResourceVerb tells the verbs supported by the resource.

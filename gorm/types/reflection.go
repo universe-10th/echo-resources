@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/universe-10th/echo-resources/types"
+	"github.com/universe-10th/rest-resources/types"
 	"gorm.io/gorm/schema"
 )
 

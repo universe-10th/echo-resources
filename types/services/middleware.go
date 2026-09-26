@@ -3,7 +3,7 @@ package services
 import (
 	"errors"
 
-	"github.com/universe-10th/echo-resources/types"
+	"github.com/universe-10th/rest-resources/types"
 )
 
 // SetupMiddleware is used for ALL the endpoints registered in

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	resourcetypes "github.com/universe-10th/echo-resources/types"
+	resourcetypes "github.com/universe-10th/rest-resources/types"
 	"gorm.io/gorm"
 )
 

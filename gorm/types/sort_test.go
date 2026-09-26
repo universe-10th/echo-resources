@@ -3,7 +3,7 @@ package types
 import (
 	"testing"
 
-	resourcetypes "github.com/universe-10th/echo-resources/types"
+	resourcetypes "github.com/universe-10th/rest-resources/types"
 )
 
 func TestSortSourceProvidesSerializerAndValidator(t *testing.T) {

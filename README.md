@@ -1,14 +1,25 @@
-# echo-resources
+# rest-resources
 
-Small JSON resource helpers for the [Echo](https://echo.labstack.com/) Web/HTTP framework.
+`rest-resources` builds typed CRUD resource services for libraries like the
+[Echo](https://echo.labstack.com/) HTTP framework. You describe a resource, choose a storage adapter,
+configure callbacks such as validation and rendering, and install the service
+into an Echo app or Echo group.
 
-This module is intended to be imported by other Go services that want a simple,
-consistent response envelope for Echo handlers.
+The package focuses on APIs where collections, singleton resources, nested
+resources, filters, sort, pagination, hard deletes, and soft deletes all follow
+the same conventions.
+
+## Documentation
+
+- [Introduction and rationale](docs/introduction/README.md)
+- [Tutorial](docs/tutorial/README.md)
+- [Full API documentation](docs/reference/README.md)
+- [Filter and sort syntax](docs/reference/queries.md)
 
 ## Requirements
 
 - Go 1.25 or newer
-- Echo v4
+- Echo v4 (if using the Echo adapter)
 
 The module uses Go toolchain support, so older compatible Go installations can
 download the required toolchain automatically when `GOTOOLCHAIN=auto` is enabled.
@@ -16,121 +27,72 @@ download the required toolchain automatically when `GOTOOLCHAIN=auto` is enabled
 ## Installation
 
 ```sh
-go get github.com/universe-10th/echo-resources
+go get github.com/universe-10th/rest-resources
 ```
 
-## Usage
+## Quick Start
+
+This is a quick start with `Echo`.
 
 ```go
 package main
 
 import (
-	"net/http"
-
-	echoresources "github.com/universe-10th/echo-resources"
-	"github.com/labstack/echo/v4"
+	echov4 "github.com/labstack/echo/v4"
+	resourceecho "github.com/universe-10th/rest-resources/echo"
+	"github.com/universe-10th/rest-resources/memory"
+	"github.com/universe-10th/rest-resources/types/services"
 )
 
-type user struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+type Book struct {
+	memory.Resource[int]
+	Title string `json:"title"`
 }
 
 func main() {
-	e := echo.New()
+	app := echov4.New()
 
-	e.GET("/users/:id", func(c echo.Context) error {
-		return echoresources.OK(c, user{ID: 1, Name: "Ada"})
-	})
+	storage := memory.NewStorage[int, *Book]()
+	books := services.MustCreateCollectionService[int, *Book]("books", "book_id", storage)
 
-	e.POST("/users", func(c echo.Context) error {
-		created := user{ID: 2, Name: "Grace"}
-		return echoresources.Created(c, "/users/2", created)
-	})
-
-	e.GET("/missing", func(c echo.Context) error {
-		return echoresources.Fail(c, http.StatusNotFound, "user not found")
-	})
-
-	e.Logger.Fatal(e.Start(":8080"))
+	resourceecho.MustInstall(app, books)
+	app.Logger.Fatal(app.Start(":8080"))
 }
 ```
 
-Example responses:
+This registers the default collection routes:
 
-```json
-{"data":{"id":1,"name":"Ada"}}
+```text
+GET    /books
+POST   /books
+GET    /books/:book_id
+PATCH  /books/:book_id
+DELETE /books/:book_id
 ```
 
-```json
-{"error":"user not found"}
-```
-
-## API
-
-- `New(data)` creates a `{"data": ...}` envelope without writing a response.
-- `NewCollection(data)` creates a `{"data": [...]}` collection envelope.
-- `OK(c, data)` writes a `200` JSON resource response.
-- `Created(c, location, data)` writes a `201` JSON resource response and an optional `Location` header.
-- `List(c, data)` writes a `200` JSON collection response.
-- `NoContent(c)` writes a `204` empty response.
-- `Text(c, message)` writes a `200` message response.
-- `Fail(c, code, message)` writes a JSON error response.
-
-## Resource Types
-
-The `types` package defines small interfaces for domain models:
-
-- `types.Resource[T]` requires `GetID`, `GetCreationTime`, and `GetLastUpdateTime`.
-- `types.SoftDeletedResource[T]` also requires `GetDeletionTime` and `IsDeleted`.
-
-Optional integration packages provide reusable model fragments:
+Install into a subgroup when your API has a prefix:
 
 ```go
-import gormtypes "github.com/universe-10th/echo-resources/gorm/types"
+api := app.Group("/api")
+resourceecho.MustInstall(api, books)
 ```
 
-The GORM package provides:
+## Package Map
 
-- `gormtypes.Resource[T]`
-- `gormtypes.SoftDeletedResource[T]`
-- `gormtypes.PrimaryKey`
-
-`gormtypes.PrimaryKey` allows scalar primary-key values such as signed/unsigned
-integers, `string`, `time.Time`, and `github.com/google/uuid.UUID`.
-
-```go
-import mongotypes "github.com/universe-10th/echo-resources/mongo/types"
-```
-
-The MongoDB package provides:
-
-- `mongotypes.Resource`
-- `mongotypes.SoftDeletedResource`
-- `mongotypes.SoftDeleteIndexModel`
-
-MongoDB resources implement `types.Resource[bson.ObjectID]` and
-`types.SoftDeletedResource[bson.ObjectID]`.
-
-## Filters
-
-Filters are JSON objects parsed into `types.FilterExpression` and serialized by
-the integration packages for their backing engines.
-
-Supported top-level and nested logical filters:
-
-```json
-{"$and":[{"price":{"$gte":10}},{"name":{"$contains":"Ada"}}]}
-{"$or":[{"price":{"$lt":10}},{"price":{"$gt":100}}]}
-{"$not":{"archived":{"$exists":true}}}
-```
-
-Supported field operations are `$lt`, `$lte`, `$gt`, `$gte`, `$eq`, `$ne`,
-`$null`, `$exists`, and `$contains`, depending on field and engine support.
-
-The special top-level-only filter `{"$none":true}` is also supported. Its only
-accepted value is `true`, and it serializes to an always-empty query predicate:
-`1 = 0` for GORM and `{"$expr": false}` for MongoDB.
+- `echo`: Echo adapter, context wrapper, and service installer.
+- `types`: framework-neutral resource, storage, filter, sort, mapping, and error
+  contracts.
+- `types/services`: resource service constructors, endpoint behavior,
+  callbacks, middleware, and nesting.
+- `memory`: in-process storage and reusable model fragments for tests and
+  prototypes.
+- `gorm`: GORM storage adapter.
+- `gorm/types`: GORM-ready resource fragments, field mapping, filter, and sort
+  serializers.
+- `mongo`: MongoDB storage adapter.
+- `mongo/types`: MongoDB-ready resource fragments, field mapping, filter, and
+  sort serializers.
+- `utils`: small validation and flag helpers used by the public service APIs.
 
 ## Development
 
@@ -138,21 +100,6 @@ accepted value is `true`, and it serializes to an always-empty query predicate:
 go test ./...
 go vet ./...
 gofmt -w .
-```
-
-## Versioning
-
-This project should use semantic version tags for releases:
-
-```sh
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-Consumers can then pin a version:
-
-```sh
-go get github.com/universe-10th/echo-resources@v0.1.0
 ```
 
 ## License

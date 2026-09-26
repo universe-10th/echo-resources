@@ -1,4 +1,4 @@
-module github.com/universe-10th/echo-resources
+module github.com/universe-10th/rest-resources
 
 go 1.25.0
 

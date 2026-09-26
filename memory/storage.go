@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/universe-10th/echo-resources/types"
+	"github.com/universe-10th/rest-resources/types"
 )
 
 // IDGenerator returns the next ID for an inserted element.

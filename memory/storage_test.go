@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/universe-10th/echo-resources/types"
+	"github.com/universe-10th/rest-resources/types"
 )
 
 type memoryTestResource struct {

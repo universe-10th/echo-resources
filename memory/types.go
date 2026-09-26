@@ -4,7 +4,7 @@ package memory
 import (
 	"time"
 
-	resourcetypes "github.com/universe-10th/echo-resources/types"
+	resourcetypes "github.com/universe-10th/rest-resources/types"
 )
 
 // PrimaryKey is the set of scalar ID types supported by the memory resource

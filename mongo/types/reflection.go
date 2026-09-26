@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/universe-10th/echo-resources/types"
+	"github.com/universe-10th/rest-resources/types"
 )
 
 // FieldToStorage maps exported struct field names to their MongoDB BSON field names.

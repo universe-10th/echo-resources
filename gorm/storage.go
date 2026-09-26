@@ -4,8 +4,8 @@ import (
 	"errors"
 	"reflect"
 
-	gormtypes "github.com/universe-10th/echo-resources/gorm/types"
-	"github.com/universe-10th/echo-resources/types"
+	gormtypes "github.com/universe-10th/rest-resources/gorm/types"
+	"github.com/universe-10th/rest-resources/types"
 	gormdb "gorm.io/gorm"
 )
 

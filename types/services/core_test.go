@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/universe-10th/echo-resources/types"
+	"github.com/universe-10th/rest-resources/types"
 )
 
 type coreConstraintResource struct {

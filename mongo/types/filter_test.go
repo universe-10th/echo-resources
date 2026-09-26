@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	resourcetypes "github.com/universe-10th/echo-resources/types"
+	resourcetypes "github.com/universe-10th/rest-resources/types"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
