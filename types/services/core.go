@@ -18,6 +18,7 @@ import (
 var (
 	ErrInvalidStorage              = errors.New("invalid storage")
 	ErrInvalidParentService        = errors.New("invalid parent service")
+	ErrAlreadyAttached             = errors.New("service already attached")
 	ErrCyclicServiceAttachment     = errors.New("cyclic service attachment")
 	ErrConflictingServiceURLArg    = errors.New("conflicting service URL arg")
 	ErrInvalidConstraintJSONField  = errors.New("invalid constraint JSON field")
@@ -467,6 +468,7 @@ func (service *ResourceService[IDT, RT]) addChild(child Service) {
 // MustAttachTo attaches the current service to another service.
 // It fails, panicking, under the following conditions:
 //   - s being null.
+//   - current service already attached to another service.
 //   - s being the current service.
 //   - Traversing the .Parent() upward in `s`, it is found that
 //     the current service is in the path (causing a cycle), or
@@ -475,6 +477,9 @@ func (service *ResourceService[IDT, RT]) addChild(child Service) {
 func (service *ResourceService[IDT, RT]) MustAttachTo(s Service, constraintJSONField string) {
 	if s == nil {
 		panic(ErrInvalidParentService)
+	}
+	if service.parentService != nil {
+		panic(ErrAlreadyAttached)
 	}
 
 	for parent := s; parent != nil; parent = parent.Parent() {
