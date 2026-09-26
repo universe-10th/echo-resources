@@ -270,7 +270,7 @@ func TestUpdateReadsRestoresAppliesConstraintSavesAndRenders(t *testing.T) {
 		},
 	}
 
-	err := service.update(context)
+	err := service.Update(context)
 	if err != nil {
 		t.Fatalf("update returned error: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestCreateClearsIDStampsSavesAndRenders(t *testing.T) {
 		storage: storage,
 	}
 
-	err := service.create(context)
+	err := service.Create(context)
 	if err != nil {
 		t.Fatalf("create returned error: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestCreateSingletonRejectsExistingActiveElement(t *testing.T) {
 		singleton: true,
 	}
 
-	err := service.create(context)
+	err := service.Create(context)
 	if err != nil {
 		t.Fatalf("create returned error: %v", err)
 	}
@@ -363,7 +363,7 @@ func TestDeletePruneAndRestoreUseStackedElement(t *testing.T) {
 		prefix:  "resources",
 		storage: deleteStorage,
 	}
-	if err := deleteService.delete(deleteContext); err != nil {
+	if err := deleteService.Delete(deleteContext); err != nil {
 		t.Fatalf("delete returned error: %v", err)
 	}
 	if deleteStorage.deleted != element {
@@ -379,7 +379,7 @@ func TestDeletePruneAndRestoreUseStackedElement(t *testing.T) {
 		prefix:  "resources",
 		storage: pruneStorage,
 	}
-	if err := pruneService.prune(pruneContext); err != nil {
+	if err := pruneService.Prune(pruneContext); err != nil {
 		t.Fatalf("prune returned error: %v", err)
 	}
 	if pruneStorage.pruned != element {
@@ -395,7 +395,7 @@ func TestDeletePruneAndRestoreUseStackedElement(t *testing.T) {
 		prefix:  "resources",
 		storage: restoreStorage,
 	}
-	if err := restoreService.restore(restoreContext); err != nil {
+	if err := restoreService.Restore(restoreContext); err != nil {
 		t.Fatalf("restore returned error: %v", err)
 	}
 	if restoreStorage.restored != element {
@@ -434,7 +434,7 @@ func TestListParsesQueryAppliesRestrictionsRetrievesAndRenders(t *testing.T) {
 		},
 	}
 
-	err := service.list(context, true)
+	err := service.List(context, true)
 	if err != nil {
 		t.Fatalf("list returned error: %v", err)
 	}
@@ -473,7 +473,7 @@ func TestListUsesDefaultSortAndDefaultPage(t *testing.T) {
 		},
 	}
 
-	err := service.list(context, false)
+	err := service.List(context, false)
 	if err != nil {
 		t.Fatalf("list returned error: %v", err)
 	}
@@ -505,7 +505,7 @@ func TestListRejectsDisallowedFilterField(t *testing.T) {
 		},
 	}
 
-	err := service.list(context, false)
+	err := service.List(context, false)
 	if err != nil {
 		t.Fatalf("list returned error: %v", err)
 	}

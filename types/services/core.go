@@ -70,6 +70,15 @@ type Service interface {
 	// Parent tells the parent of the current service.
 	Parent() Service
 
+	// Middlewares tell the middlewares that apply to the main group
+	// or prefix for all the defined routes. Still, things apply here:
+	// 1. The SetupMiddleware will NOT be included here. It will be
+	//    added on its own and BEFORE all the middlewares here. This
+	//    means that the SetupMiddleware will come first, and then
+	//    all these middlewares.
+	// 2. The ElementMiddleware will not be included here. Typically,
+	//    they will be included in the group stated for /{prefix}/{id}
+	//    and /{prefix}/deleted/{id}.
 	Middlewares() []MiddlewareFunc
 
 	// List defines an endpoint. Used only for COLLECTION resources and
