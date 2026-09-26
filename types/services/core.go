@@ -114,23 +114,47 @@ const (
   Then, when they're installed in a framework, their paths are:
 
   Group /stores
-      GET            >> List stores
+      GET                   >> List stores
       - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceList, "") + others
-      POST           >> Create a store
+      POST                  >> Create a store
       - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceCreate, "") + others
-      GET /deleted   >> List deleted stores
+      GET /deleted          >> List deleted stores
       - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceListDeleted, "") + others
-      GET /{s_id}    >> Get an element (notice how "deleted" may take precedence, which
-                        makes one consider that using arbitrary strings as keys might not
-                        be a very good idea).
+      GET /{s_id}           >> Get an element (notice how "deleted" may take precedence, which
+                               makes one consider that using arbitrary strings as keys might not
+                               be a very good idea).
       - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceGet, "") +
-                    ElementMiddleware[IDT, RT] +
-                    others
-      PATCH  /{s_id} >> Patch an element.
-      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceUpdate, "") + others
-      DELETE /{s_id} >> Delete an element.
-      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceDelete, "") + others
-      GET /deleted/{s_id}
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=false)
+      PATCH  /{s_id}        >> Patch an element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourcePatch, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=false)
+      DELETE /{s_id}        >> Delete an element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceDelete, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=false)
+      GET /deleted/{s_id}    >> Get a deleted element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceGetDeleted, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=true)
+      POST /deleted/{s_id}   >> Restore a deleted element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceRestore, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=true)
+      DELETE /deleted/{s_id} >> Prune a deleted element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourcePrune, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=true)
+
+  Considering the following:
+  1. This is for a collection, not for a singleton. The example for singleton is
+     something I'll add later.
+  2. This assumes all the verbs are included. If the Verbs() does not include one
+     specific verb, its endpoint will NOT be registered.
+  3. If the underlying resource is not a SoftDeletedResource[IDT], then the endpoints
+     for ResourceListDeleted, ResourceGetDeleted, ResourceRestore or ResourceGet will
+     never be registered, even if the corresponding verb is specified.
 */
 
 // A Service is an instance that can be registered in a web application.
@@ -148,6 +172,10 @@ type Service interface {
 	// Verbs tells the list of supported verbs.
 	Verbs() utils.Flags[ResourceVerb]
 
+	// CanHaveChildren tells whether this service can have children.
+	// It is implemented as: Verbs() including ResourceGet.
+	CanHaveChildren() bool
+
 	// Children tells the services that are children of this service.
 	Children() []Service
 
@@ -159,10 +187,12 @@ type Service interface {
 	// 1. The SetupMiddleware will NOT be included here. It will be
 	//    added on its own and BEFORE all the middlewares here. This
 	//    means that the SetupMiddleware will come first, and then
-	//    all these middlewares.
+	//    all these middlewares. This is done per-element, since the
+	//    verb is specified.
 	// 2. The ElementMiddleware will not be included here. Typically,
-	//    they will be included in the group stated for /{prefix}/{id}
-	//    and /{prefix}/deleted/{id}.
+	//    they will be included in the endpoints stated for /{prefix}/{id}
+	//    and /{prefix}/deleted/{id}, right after the SetupMiddleware
+	//    and all the other middlewares.
 	Middlewares() []MiddlewareFunc
 
 	// List defines an endpoint. Used only for COLLECTION resources and
@@ -317,9 +347,14 @@ func (service ResourceService[IDT, RT]) URLArg() string {
 
 // Here is where the configuration starts.
 
-// UsingVerbs sets the verbs to enable for this resource.
+// UsingVerbs sets the verbs to enable for this resource. If
+// the service already has children, the ResourceGet is something
+// to always force.
 func (service *ResourceService[IDT, RT]) UsingVerbs(verbs ...ResourceVerb) *ResourceService[IDT, RT] {
 	service.verbs = utils.NewFlags[ResourceVerb](verbs...)
+	if len(service.childrenServices) > 0 {
+		service.verbs.Add(ResourceGet)
+	}
 	return service
 }
 
@@ -564,7 +599,7 @@ func (service *ResourceService[IDT, RT]) addChild(child Service) {
 //     the current service is a Collection and also the URL Arg
 //     of the current service is found while traversing.
 func (service *ResourceService[IDT, RT]) MustAttachTo(s Service, constraintJSONField string) {
-	if s == nil {
+	if s == nil || !s.CanHaveChildren() {
 		panic(ErrInvalidParentService)
 	}
 	if service.parentService != nil {
