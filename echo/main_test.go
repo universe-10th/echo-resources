@@ -158,6 +158,36 @@ func TestInstallWrapsElementMiddleware(t *testing.T) {
 	}
 }
 
+func TestInstallAcceptsEchoGroup(t *testing.T) {
+	t.Parallel()
+
+	app := echov4.New()
+	group := app.Group("/api")
+	service := &testService{
+		prefix: "items",
+		urlArg: "item_id",
+		verbs:  utils.NewFlags(services.ResourceList),
+	}
+
+	if err := Install(group, service); err != nil {
+		t.Fatalf("Install returned error: %v", err)
+	}
+
+	rootRequest := httptest.NewRequest(http.MethodGet, "/items", nil)
+	rootResponse := httptest.NewRecorder()
+	app.ServeHTTP(rootResponse, rootRequest)
+	if rootResponse.Code != http.StatusNotFound {
+		t.Fatalf("expected root route status 404, got %d", rootResponse.Code)
+	}
+
+	groupRequest := httptest.NewRequest(http.MethodGet, "/api/items", nil)
+	groupResponse := httptest.NewRecorder()
+	app.ServeHTTP(groupResponse, groupRequest)
+	if groupResponse.Code != http.StatusOK {
+		t.Fatalf("expected grouped route status 200, got %d with body %s", groupResponse.Code, groupResponse.Body.String())
+	}
+}
+
 type integrationStore struct {
 	memory.SoftDeletedResource[int]
 	Name string `json:"name"`

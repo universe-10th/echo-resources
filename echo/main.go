@@ -3,6 +3,7 @@ package echo
 import (
 	"errors"
 	"net/http"
+	"reflect"
 
 	echov4 "github.com/labstack/echo/v4"
 	"github.com/universe-10th/echo-resources/types/services"
@@ -16,6 +17,11 @@ var (
 	echoContextEnvelopeKey  = "__echo_resources_context"
 	echoContextUserDataPref = "__echo_resources_data_"
 )
+
+// GroupProvider is an Echo app or group that can create child groups.
+type GroupProvider interface {
+	Group(prefix string, m ...echov4.MiddlewareFunc) *echov4.Group
+}
 
 // Context wraps an Echo context with the framework-neutral services.Context API.
 type Context struct {
@@ -217,11 +223,11 @@ func toHTTPSameSite(sameSite services.CookieSameSite) http.SameSite {
 	}
 }
 
-// MustInstall installs a non-child service inside an Echo app.
-// Panics if the echo app is nil, the service is nil or the
+// MustInstall installs a non-child service inside an Echo app or group.
+// Panics if the echo app or group is nil, the service is nil or the
 // service has a parent.
-func MustInstall(app *echov4.Echo, service services.Service) {
-	if app == nil {
+func MustInstall(app GroupProvider, service services.Service) {
+	if isNilGroupProvider(app) {
 		panic(ErrInvalidEchoApp)
 	}
 	if service == nil {
@@ -234,10 +240,10 @@ func MustInstall(app *echov4.Echo, service services.Service) {
 	installService(app.Group(""), service)
 }
 
-// Install installs a non-child service inside an Echo app.
-// Returns an error if the echo app is nil, the service is
+// Install installs a non-child service inside an Echo app or group.
+// Returns an error if the echo app or group is nil, the service is
 // nil or the service has a parent.
-func Install(app *echov4.Echo, service services.Service) (err error) {
+func Install(app GroupProvider, service services.Service) (err error) {
 	defer func() {
 		if v := recover(); v != nil {
 			if err_, ok := v.(error); ok {
@@ -250,6 +256,20 @@ func Install(app *echov4.Echo, service services.Service) (err error) {
 
 	MustInstall(app, service)
 	return nil
+}
+
+func isNilGroupProvider(app GroupProvider) bool {
+	if app == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(app)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 func installService(base *echov4.Group, service services.Service) {
