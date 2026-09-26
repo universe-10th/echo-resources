@@ -186,6 +186,22 @@ type integrationHardItem struct {
 	Name string `json:"name"`
 }
 
+type integrationPlatformProfile struct {
+	memory.Resource[int]
+	Name string `json:"name"`
+}
+
+type integrationStoreProfile struct {
+	memory.Resource[int]
+	StoreID int    `json:"store_id"`
+	Note    string `json:"note"`
+}
+
+type integrationPlatformEvent struct {
+	memory.Resource[int]
+	Name string `json:"name"`
+}
+
 /*
 Route documentation for this platform integration.
 
@@ -344,6 +360,9 @@ func TestEchoPlatformWithMemoryStorageNestedSingletonsCollectionsAndDeletes(t *t
 	productStorage := memory.NewStorage[int, *integrationProduct]()
 	settingStorage := memory.NewStorage[int, *integrationSetting]()
 	hardItemStorage := memory.NewStorage[int, *integrationHardItem]()
+	platformProfileStorage := memory.NewStorage[int, *integrationPlatformProfile]()
+	storeProfileStorage := memory.NewStorage[int, *integrationStoreProfile]()
+	platformEventStorage := memory.NewStorage[int, *integrationPlatformEvent]()
 
 	storeService := services.MustCreateCollectionService[int, *integrationStore]("stores", "store_id", storeStorage)
 	storeService.UsingPageSize(5)
@@ -373,6 +392,15 @@ func TestEchoPlatformWithMemoryStorageNestedSingletonsCollectionsAndDeletes(t *t
 	productService.MustAttachTo(catalogService, "catalog_id")
 	settingService := services.MustCreateSingletonService[int, *integrationSetting]("platform", settingStorage)
 	settingService.UsingMiddlewares(integrationMiddleware("platform"))
+	platformProfileService := services.MustCreateSingletonService[int, *integrationPlatformProfile]("profile", platformProfileStorage)
+	platformProfileService.UsingMiddlewares(integrationMiddleware("platform-profile"))
+	platformProfileService.MustAttachTo(settingService, "")
+	platformEventService := services.MustCreateCollectionService[int, *integrationPlatformEvent]("events", "event_id", platformEventStorage)
+	platformEventService.UsingMiddlewares(integrationMiddleware("platform-events"))
+	platformEventService.MustAttachTo(settingService, "")
+	storeProfileService := services.MustCreateSingletonService[int, *integrationStoreProfile]("profile", storeProfileStorage)
+	storeProfileService.UsingMiddlewares(integrationMiddleware("store-profile"))
+	storeProfileService.MustAttachTo(storeService, "store_id")
 	hardItemService := services.MustCreateCollectionService[int, *integrationHardItem]("hard-items", "hard_item_id", hardItemStorage)
 	hardItemService.UsingMiddlewares(integrationMiddleware("hard-items"))
 
@@ -494,6 +522,49 @@ func TestEchoPlatformWithMemoryStorageNestedSingletonsCollectionsAndDeletes(t *t
 		t.Fatalf("unexpected patched singleton response: %#v", patchedSetting)
 	}
 
+	platformProfileResponse := performJSONRequest(t, app, http.MethodPost, "/platform/profile", map[string]any{"name": "Root Profile"})
+	requireStatus(t, platformProfileResponse, http.StatusCreated)
+	requireMiddleware(t, platformProfileResponse, "platform", "platform-profile")
+	var platformProfile integrationPlatformProfile
+	decodeJSON(t, platformProfileResponse, &platformProfile)
+	if platformProfile.ID == 0 || platformProfile.Name != "Root Profile" {
+		t.Fatalf("unexpected singleton child of singleton response: %#v", platformProfile)
+	}
+
+	platformProfileGetResponse := performJSONRequest(t, app, http.MethodGet, "/platform/profile", nil)
+	requireStatus(t, platformProfileGetResponse, http.StatusOK)
+	requireMiddleware(t, platformProfileGetResponse, "platform", "platform-profile")
+
+	platformEventResponse := performJSONRequest(t, app, http.MethodPost, "/platform/events", map[string]any{"name": "Launch"})
+	requireStatus(t, platformEventResponse, http.StatusCreated)
+	requireMiddleware(t, platformEventResponse, "platform", "platform-events")
+	var platformEvent integrationPlatformEvent
+	decodeJSON(t, platformEventResponse, &platformEvent)
+	if platformEvent.ID == 0 || platformEvent.Name != "Launch" {
+		t.Fatalf("unexpected collection child of singleton response: %#v", platformEvent)
+	}
+
+	platformEventsListResponse := performJSONRequest(t, app, http.MethodGet, "/platform/events", nil)
+	requireStatus(t, platformEventsListResponse, http.StatusOK)
+	requireMiddleware(t, platformEventsListResponse, "platform", "platform-events")
+
+	platformEventGetResponse := performJSONRequest(t, app, http.MethodGet, "/platform/events/"+strconv.Itoa(platformEvent.ID), nil)
+	requireStatus(t, platformEventGetResponse, http.StatusOK)
+	requireMiddleware(t, platformEventGetResponse, "platform", "platform-events")
+
+	storeProfileResponse := performJSONRequest(t, app, http.MethodPost, "/stores/1/profile", map[string]any{"note": "Store scoped"})
+	requireStatus(t, storeProfileResponse, http.StatusCreated)
+	requireMiddleware(t, storeProfileResponse, "stores", "store-profile")
+	var storeProfile integrationStoreProfile
+	decodeJSON(t, storeProfileResponse, &storeProfile)
+	if storeProfile.ID == 0 || storeProfile.StoreID != createdStore.ID {
+		t.Fatalf("unexpected singleton child of collection response: %#v", storeProfile)
+	}
+
+	storeProfileGetResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/profile", nil)
+	requireStatus(t, storeProfileGetResponse, http.StatusOK)
+	requireMiddleware(t, storeProfileGetResponse, "stores", "store-profile")
+
 	productsResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs/1/products?sort=rank", nil)
 	requireStatus(t, productsResponse, http.StatusOK)
 	requireMiddleware(t, productsResponse, "stores", "catalogs", "products")
@@ -605,6 +676,14 @@ func TestEchoPlatformWithMemoryStorageNestedSingletonsCollectionsAndDeletes(t *t
 	storePruneResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/deleted/1", nil)
 	requireStatus(t, storePruneResponse, http.StatusNoContent)
 	requireMiddleware(t, storePruneResponse, "stores")
+
+	platformEventDeleteResponse := performJSONRequest(t, app, http.MethodDelete, "/platform/events/"+strconv.Itoa(platformEvent.ID), nil)
+	requireStatus(t, platformEventDeleteResponse, http.StatusNoContent)
+	requireMiddleware(t, platformEventDeleteResponse, "platform", "platform-events")
+
+	platformProfileDeleteResponse := performJSONRequest(t, app, http.MethodDelete, "/platform/profile", nil)
+	requireStatus(t, platformProfileDeleteResponse, http.StatusNoContent)
+	requireMiddleware(t, platformProfileDeleteResponse, "platform", "platform-profile")
 
 	settingDeleteResponse := performJSONRequest(t, app, http.MethodDelete, "/platform", nil)
 	requireStatus(t, settingDeleteResponse, http.StatusNoContent)
