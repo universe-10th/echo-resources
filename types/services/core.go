@@ -155,6 +155,70 @@ const (
   3. If the underlying resource is not a SoftDeletedResource[IDT], then the endpoints
      for ResourceListDeleted, ResourceGetDeleted, ResourceRestore or ResourceGet will
      never be registered, even if the corresponding verb is specified.
+
+  If the stores were a singleton itself, same rules would apply but the endpoints
+  would be these:
+
+  Group /stores
+      POST            >> Create THE store, if not already created (deleted or not)
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceCreate, "") + others
+      GET             >> Get THE element (notice how "deleted" may take precedence, which
+                         makes one consider that using arbitrary strings as keys might not
+                         be a very good idea).
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceGet, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=false)
+      PATCH           >> Patch THE element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourcePatch, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=false)
+      DELETE          >> Delete THE element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceDelete, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=false)
+      GET /deleted    >> Get THE being-deleted element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceGetDeleted, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=true)
+      POST /deleted   >> Restore THE being-deleted element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceRestore, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=true)
+      DELETE /deleted >> Prune THE being-deleted element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourcePrune, "") +
+                    others +
+                    ElementMiddleware[IDT, RT](deleted=true)
+
+  Now, if a resource has its ResourceGet verb enabled, it can have children.
+  This is done by calling:
+
+    catalogService.MustAttachTo(storeService, "store_id")
+
+  When doing this, it will happen that the base route of catalogService will not be
+  the /catalogs one but, instead: /stores/{s_id}/cattalogs. Like this:
+
+  Group /stores/{s_id}/catalogs
+      POST ...
+      ...the same stuff defined above...
+
+  Also, the middlewares for catalog will not be just the typical SetupMiddleware +
+  others + ElementMiddleware: they will have, prepended, the triplet of middlewares
+  from the `GET /stores/{s_id}` endpoint above. This is solved by major frameworks
+  (e.g. echo lets you define groups where each group inherits middlewares from the
+  parent/ancestor groups).
+
+  Following the idea, when the products service is attached to the catalogs, like:
+
+    productService.MustAttachTo(catalogService, "catalog_id")
+
+  the base route will be:
+
+  Group /stores/{s_id}/catalogs/{c_id}/products
+      POST ...
+      ...the same stuff defined above...
+
+  and the middlewares will be the (3 middlewares from stores' GET) + (3 middlewares
+  from the catalogs' GET) + whatever middlewares the verb endpoints need here.
 */
 
 // A Service is an instance that can be registered in a web application.
