@@ -878,11 +878,16 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 // applyPreviousConstraint applies the current constraint to the element, so it's
 // always consistent.
 func (service ResourceService[IDT, RT]) applyPreviousConstraint(context Context, element *RT) error {
-	if service.constraintJSONField != "" {
-		// We use index 1 since we want to get not the current
-		// element but the PREVIOUS one instead.
+	return service.applyConstraintFromStack(context, element, 1)
+}
 
-		parentID, err := getStackedElementID(context, 1)
+func (service ResourceService[IDT, RT]) applyCurrentConstraint(context Context, element *RT) error {
+	return service.applyConstraintFromStack(context, element, 0)
+}
+
+func (service ResourceService[IDT, RT]) applyConstraintFromStack(context Context, element *RT, index int) error {
+	if service.constraintJSONField != "" {
+		parentID, err := getStackedElementID(context, index)
 		if err != nil {
 			return err
 		}
@@ -1254,7 +1259,7 @@ func (service ResourceService[IDT, RT]) Create(context Context) error {
 	element.SetID(zero)
 	element.SetCreationTime()
 
-	if err := service.applyPreviousConstraint(context, &element); err != nil {
+	if err := service.applyCurrentConstraint(context, &element); err != nil {
 		return renderErrorOr(context, err, types.InternalError{})
 	}
 
