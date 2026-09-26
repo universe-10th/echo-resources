@@ -702,6 +702,8 @@ func (service *ResourceService[IDT, RT]) AttachTo(s Service, constraintJSONField
 		if v := recover(); v != nil {
 			if err2, ok := v.(error); ok {
 				err = err2
+			} else {
+				panic(v)
 			}
 		}
 	}()
@@ -1311,6 +1313,8 @@ func CreateSingletonService[IDT comparable, RT types.Resource[IDT]](
 			if err2, ok := v.(error); ok {
 				res = nil
 				err = err2
+			} else {
+				panic(v)
 			}
 		}
 	}()
@@ -1353,6 +1357,8 @@ func CreateCollectionService[IDT comparable, RT types.Resource[IDT]](
 			if err2, ok := v.(error); ok {
 				res = nil
 				err = err2
+			} else {
+				panic(v)
 			}
 		}
 	}()
