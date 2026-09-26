@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	echov4 "github.com/labstack/echo/v4"
@@ -200,7 +201,7 @@ Then it attaches:
 Middleware names below are the service-neutral middleware functions wrapped for Echo:
   - setup(S, V): setupMiddleware(service=S, endpointType=EndpointVerb, verb=V, name="").
   - element(S, deleted): services.ElementMiddleware for service S, loading the current element and pushing it on the context stack.
-  - service middlewares: service.Middlewares(); this test leaves them empty for every service.
+  - service middlewares: service.Middlewares(); this test installs one custom middleware per service.
 
 Created URLs and middleware chains:
 
@@ -346,14 +347,34 @@ func TestEchoPlatformWithMemoryStorageNestedSingletonsCollectionsAndDeletes(t *t
 
 	storeService := services.MustCreateCollectionService[int, *integrationStore]("stores", "store_id", storeStorage)
 	storeService.UsingPageSize(5)
+	storeService.UsingMiddlewares(integrationMiddleware("stores"))
+	storeService.UsingElementRenderer(func(context services.Context, store *integrationStore) error {
+		return context.RenderJSON(http.StatusOK, map[string]any{
+			"id":       store.ID,
+			"name":     store.Name,
+			"rendered": "store-element",
+		})
+	})
 	catalogService := services.MustCreateCollectionService[int, *integrationCatalog]("catalogs", "catalog_id", catalogStorage)
 	catalogService.UsingPageSize(5)
+	catalogService.UsingMiddlewares(integrationMiddleware("catalogs"))
 	catalogService.MustAttachTo(storeService, "store_id")
 	productService := services.MustCreateCollectionService[int, *integrationProduct]("products", "product_id", productStorage)
 	productService.UsingPageSize(5)
+	productService.UsingMiddlewares(integrationMiddleware("products"))
+	productService.UsingPageRenderer(func(context services.Context, products []*integrationProduct, page int64, totalPages int64) error {
+		return context.RenderJSON(http.StatusOK, map[string]any{
+			"items":    products,
+			"page":     page,
+			"pages":    totalPages,
+			"rendered": "products-page",
+		})
+	})
 	productService.MustAttachTo(catalogService, "catalog_id")
 	settingService := services.MustCreateSingletonService[int, *integrationSetting]("platform", settingStorage)
+	settingService.UsingMiddlewares(integrationMiddleware("platform"))
 	hardItemService := services.MustCreateCollectionService[int, *integrationHardItem]("hard-items", "hard_item_id", hardItemStorage)
+	hardItemService.UsingMiddlewares(integrationMiddleware("hard-items"))
 
 	if err := Install(app, storeService); err != nil {
 		t.Fatalf("Install returned error: %v", err)
@@ -367,6 +388,7 @@ func TestEchoPlatformWithMemoryStorageNestedSingletonsCollectionsAndDeletes(t *t
 
 	settingResponse := performJSONRequest(t, app, http.MethodPost, "/platform", map[string]any{"version": "2026.9"})
 	requireStatus(t, settingResponse, http.StatusCreated)
+	requireMiddleware(t, settingResponse, "platform")
 	var createdSetting integrationSetting
 	decodeJSON(t, settingResponse, &createdSetting)
 	if createdSetting.Version != "2026.9" || createdSetting.ID == 0 {
@@ -374,75 +396,234 @@ func TestEchoPlatformWithMemoryStorageNestedSingletonsCollectionsAndDeletes(t *t
 	}
 
 	storeResponse := performJSONRequest(t, app, http.MethodPost, "/stores", map[string]any{"name": "Main"})
-	requireStatus(t, storeResponse, http.StatusCreated)
-	var createdStore integrationStore
+	requireStatus(t, storeResponse, http.StatusOK)
+	requireMiddleware(t, storeResponse, "stores")
+	var createdStore struct {
+		ID       int    `json:"id"`
+		Name     string `json:"name"`
+		Rendered string `json:"rendered"`
+	}
 	decodeJSON(t, storeResponse, &createdStore)
-	if createdStore.ID == 0 {
-		t.Fatal("expected store to receive a generated ID")
+	if createdStore.ID == 0 || createdStore.Rendered != "store-element" {
+		t.Fatalf("unexpected rendered store response: %#v", createdStore)
 	}
 
 	hardItemResponse := performJSONRequest(t, app, http.MethodPost, "/hard-items", map[string]any{"name": "Temporary"})
 	requireStatus(t, hardItemResponse, http.StatusCreated)
+	requireMiddleware(t, hardItemResponse, "hard-items")
+	var hardItem integrationHardItem
+	decodeJSON(t, hardItemResponse, &hardItem)
 
-	catalog := &integrationCatalog{StoreID: createdStore.ID, Name: "Fall"}
-	if notFound, err := catalogStorage.Save(&catalog); err != nil || notFound {
-		t.Fatalf("catalog Save returned notFound=%v err=%v", notFound, err)
+	storesListResponse := performJSONRequest(t, app, http.MethodGet, "/stores", nil)
+	requireStatus(t, storesListResponse, http.StatusOK)
+	requireMiddleware(t, storesListResponse, "stores")
+
+	storeGetResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1", nil)
+	requireStatus(t, storeGetResponse, http.StatusOK)
+	requireMiddleware(t, storeGetResponse, "stores")
+	if !contains(storeGetResponse.Body.String(), `"rendered":"store-element"`) {
+		t.Fatalf("expected custom store renderer response, got %s", storeGetResponse.Body.String())
 	}
-	firstProduct := &integrationProduct{CatalogID: catalog.ID, Name: "Hat", Rank: 2}
-	secondProduct := &integrationProduct{CatalogID: catalog.ID, Name: "Scarf", Rank: 1}
-	for _, product := range []*integrationProduct{firstProduct, secondProduct} {
-		if notFound, err := productStorage.Save(&product); err != nil || notFound {
-			t.Fatalf("product Save returned notFound=%v err=%v", notFound, err)
-		}
+
+	storePatchResponse := performJSONRequest(t, app, http.MethodPatch, "/stores/1", map[string]any{"name": "Main Updated"})
+	requireStatus(t, storePatchResponse, http.StatusOK)
+	requireMiddleware(t, storePatchResponse, "stores")
+	if !contains(storePatchResponse.Body.String(), `"name":"Main Updated"`) {
+		t.Fatalf("expected patched store name, got %s", storePatchResponse.Body.String())
+	}
+
+	catalogResponse := performJSONRequest(t, app, http.MethodPost, "/stores/1/catalogs", map[string]any{"name": "Fall"})
+	requireStatus(t, catalogResponse, http.StatusCreated)
+	requireMiddleware(t, catalogResponse, "stores", "catalogs")
+	var catalog integrationCatalog
+	decodeJSON(t, catalogResponse, &catalog)
+	if catalog.ID == 0 || catalog.StoreID != createdStore.ID {
+		t.Fatalf("unexpected catalog response: %#v", catalog)
+	}
+
+	catalogsListResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs", nil)
+	requireStatus(t, catalogsListResponse, http.StatusOK)
+	requireMiddleware(t, catalogsListResponse, "stores", "catalogs")
+
+	catalogGetResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs/1", nil)
+	requireStatus(t, catalogGetResponse, http.StatusOK)
+	requireMiddleware(t, catalogGetResponse, "stores", "catalogs")
+
+	catalogPatchResponse := performJSONRequest(t, app, http.MethodPatch, "/stores/1/catalogs/1", map[string]any{"name": "Fall Updated"})
+	requireStatus(t, catalogPatchResponse, http.StatusOK)
+	requireMiddleware(t, catalogPatchResponse, "stores", "catalogs")
+	var patchedCatalog integrationCatalog
+	decodeJSON(t, catalogPatchResponse, &patchedCatalog)
+	if patchedCatalog.StoreID != createdStore.ID || patchedCatalog.Name != "Fall Updated" {
+		t.Fatalf("unexpected patched catalog response: %#v", patchedCatalog)
+	}
+
+	firstProductResponse := performJSONRequest(t, app, http.MethodPost, "/stores/1/catalogs/1/products", map[string]any{"name": "Hat", "rank": 2})
+	requireStatus(t, firstProductResponse, http.StatusCreated)
+	requireMiddleware(t, firstProductResponse, "stores", "catalogs", "products")
+	var firstProduct integrationProduct
+	decodeJSON(t, firstProductResponse, &firstProduct)
+	if firstProduct.ID == 0 || firstProduct.CatalogID != catalog.ID {
+		t.Fatalf("unexpected first product response: %#v", firstProduct)
+	}
+
+	secondProductResponse := performJSONRequest(t, app, http.MethodPost, "/stores/1/catalogs/1/products", map[string]any{"name": "Scarf", "rank": 1})
+	requireStatus(t, secondProductResponse, http.StatusCreated)
+	requireMiddleware(t, secondProductResponse, "stores", "catalogs", "products")
+	var secondProduct integrationProduct
+	decodeJSON(t, secondProductResponse, &secondProduct)
+	if secondProduct.ID == 0 || secondProduct.CatalogID != catalog.ID {
+		t.Fatalf("unexpected second product response: %#v", secondProduct)
 	}
 
 	settingResponse = performJSONRequest(t, app, http.MethodGet, "/platform", nil)
 	requireStatus(t, settingResponse, http.StatusOK)
+	requireMiddleware(t, settingResponse, "platform")
 	var loadedSetting integrationSetting
 	decodeJSON(t, settingResponse, &loadedSetting)
 	if loadedSetting.Version != "2026.9" {
 		t.Fatalf("unexpected singleton setting response: %#v", loadedSetting)
 	}
 
+	settingPatchResponse := performJSONRequest(t, app, http.MethodPatch, "/platform", map[string]any{"version": "2026.10"})
+	requireStatus(t, settingPatchResponse, http.StatusOK)
+	requireMiddleware(t, settingPatchResponse, "platform")
+	var patchedSetting integrationSetting
+	decodeJSON(t, settingPatchResponse, &patchedSetting)
+	if patchedSetting.Version != "2026.10" {
+		t.Fatalf("unexpected patched singleton response: %#v", patchedSetting)
+	}
+
 	productsResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs/1/products?sort=rank", nil)
 	requireStatus(t, productsResponse, http.StatusOK)
+	requireMiddleware(t, productsResponse, "stores", "catalogs", "products")
 	var productsPage struct {
-		Elements   []integrationProduct `json:"elements"`
-		Page       int                  `json:"page"`
-		TotalPages int                  `json:"totalPages"`
+		Items    []integrationProduct `json:"items"`
+		Page     int                  `json:"page"`
+		Pages    int                  `json:"pages"`
+		Rendered string               `json:"rendered"`
 	}
 	decodeJSON(t, productsResponse, &productsPage)
-	if productsPage.TotalPages != 1 || len(productsPage.Elements) != 2 || productsPage.Elements[0].Name != "Scarf" {
+	if productsPage.Pages != 1 || productsPage.Rendered != "products-page" || len(productsPage.Items) != 2 || productsPage.Items[0].Name != "Scarf" {
 		t.Fatalf("unexpected products page: %#v", productsPage)
+	}
+
+	productGetResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs/1/products/1", nil)
+	requireStatus(t, productGetResponse, http.StatusOK)
+	requireMiddleware(t, productGetResponse, "stores", "catalogs", "products")
+
+	productPatchResponse := performJSONRequest(t, app, http.MethodPatch, "/stores/1/catalogs/1/products/1", map[string]any{"name": "Hat Updated", "rank": 3})
+	requireStatus(t, productPatchResponse, http.StatusOK)
+	requireMiddleware(t, productPatchResponse, "stores", "catalogs", "products")
+	var patchedProduct integrationProduct
+	decodeJSON(t, productPatchResponse, &patchedProduct)
+	if patchedProduct.Name != "Hat Updated" || patchedProduct.CatalogID != catalog.ID {
+		t.Fatalf("unexpected patched product response: %#v", patchedProduct)
 	}
 
 	deleteProductResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1/catalogs/1/products/1", nil)
 	requireStatus(t, deleteProductResponse, http.StatusNoContent)
+	requireMiddleware(t, deleteProductResponse, "stores", "catalogs", "products")
 
 	deletedProductsResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs/1/products/deleted", nil)
 	requireStatus(t, deletedProductsResponse, http.StatusOK)
+	requireMiddleware(t, deletedProductsResponse, "stores", "catalogs", "products")
 	var deletedProductsPage struct {
-		Elements []integrationProduct `json:"elements"`
+		Items    []integrationProduct `json:"items"`
+		Rendered string               `json:"rendered"`
 	}
 	decodeJSON(t, deletedProductsResponse, &deletedProductsPage)
-	if len(deletedProductsPage.Elements) != 1 || deletedProductsPage.Elements[0].Name != "Hat" {
+	if deletedProductsPage.Rendered != "products-page" || len(deletedProductsPage.Items) != 1 || deletedProductsPage.Items[0].Name != "Hat Updated" {
 		t.Fatalf("unexpected deleted products page: %#v", deletedProductsPage)
 	}
 
+	deletedProductGetResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs/1/products/deleted/1", nil)
+	requireStatus(t, deletedProductGetResponse, http.StatusOK)
+	requireMiddleware(t, deletedProductGetResponse, "stores", "catalogs", "products")
+
 	restoreProductResponse := performJSONRequest(t, app, http.MethodPost, "/stores/1/catalogs/1/products/deleted/1", nil)
 	requireStatus(t, restoreProductResponse, http.StatusOK)
+	requireMiddleware(t, restoreProductResponse, "stores", "catalogs", "products")
 	pruneAfterRestoreResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1/catalogs/1/products/deleted/1", nil)
 	requireStatus(t, pruneAfterRestoreResponse, http.StatusNotFound)
+	requireMiddleware(t, pruneAfterRestoreResponse, "stores", "catalogs")
 
 	deleteProductAgainResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1/catalogs/1/products/1", nil)
 	requireStatus(t, deleteProductAgainResponse, http.StatusNoContent)
+	requireMiddleware(t, deleteProductAgainResponse, "stores", "catalogs", "products")
 	pruneProductResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1/catalogs/1/products/deleted/1", nil)
 	requireStatus(t, pruneProductResponse, http.StatusNoContent)
+	requireMiddleware(t, pruneProductResponse, "stores", "catalogs", "products")
 
-	deleteHardItemResponse := performJSONRequest(t, app, http.MethodDelete, "/hard-items/1", nil)
+	deleteCatalogResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1/catalogs/1", nil)
+	requireStatus(t, deleteCatalogResponse, http.StatusNoContent)
+	requireMiddleware(t, deleteCatalogResponse, "stores", "catalogs")
+
+	missingCatalogResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs/1", nil)
+	requireStatus(t, missingCatalogResponse, http.StatusNotFound)
+	requireMiddleware(t, missingCatalogResponse, "stores")
+
+	hardItemsListResponse := performJSONRequest(t, app, http.MethodGet, "/hard-items", nil)
+	requireStatus(t, hardItemsListResponse, http.StatusOK)
+	requireMiddleware(t, hardItemsListResponse, "hard-items")
+
+	hardItemGetResponse := performJSONRequest(t, app, http.MethodGet, "/hard-items/"+strconv.Itoa(hardItem.ID), nil)
+	requireStatus(t, hardItemGetResponse, http.StatusOK)
+	requireMiddleware(t, hardItemGetResponse, "hard-items")
+
+	hardItemPatchResponse := performJSONRequest(t, app, http.MethodPatch, "/hard-items/"+strconv.Itoa(hardItem.ID), map[string]any{"name": "Temporary Updated"})
+	requireStatus(t, hardItemPatchResponse, http.StatusOK)
+	requireMiddleware(t, hardItemPatchResponse, "hard-items")
+
+	deleteHardItemResponse := performJSONRequest(t, app, http.MethodDelete, "/hard-items/"+strconv.Itoa(hardItem.ID), nil)
 	requireStatus(t, deleteHardItemResponse, http.StatusNoContent)
-	missingHardItemResponse := performJSONRequest(t, app, http.MethodGet, "/hard-items/1", nil)
+	requireMiddleware(t, deleteHardItemResponse, "hard-items")
+	missingHardItemResponse := performJSONRequest(t, app, http.MethodGet, "/hard-items/"+strconv.Itoa(hardItem.ID), nil)
 	requireStatus(t, missingHardItemResponse, http.StatusNotFound)
+	requireMiddleware(t, missingHardItemResponse, "hard-items")
+
+	storeDeleteResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1", nil)
+	requireStatus(t, storeDeleteResponse, http.StatusNoContent)
+	requireMiddleware(t, storeDeleteResponse, "stores")
+
+	deletedStoresResponse := performJSONRequest(t, app, http.MethodGet, "/stores/deleted", nil)
+	requireStatus(t, deletedStoresResponse, http.StatusOK)
+	requireMiddleware(t, deletedStoresResponse, "stores")
+
+	deletedStoreGetResponse := performJSONRequest(t, app, http.MethodGet, "/stores/deleted/1", nil)
+	requireStatus(t, deletedStoreGetResponse, http.StatusOK)
+	requireMiddleware(t, deletedStoreGetResponse, "stores")
+
+	storeRestoreResponse := performJSONRequest(t, app, http.MethodPost, "/stores/deleted/1", nil)
+	requireStatus(t, storeRestoreResponse, http.StatusOK)
+	requireMiddleware(t, storeRestoreResponse, "stores")
+
+	storeDeleteAgainResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1", nil)
+	requireStatus(t, storeDeleteAgainResponse, http.StatusNoContent)
+	requireMiddleware(t, storeDeleteAgainResponse, "stores")
+
+	storePruneResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/deleted/1", nil)
+	requireStatus(t, storePruneResponse, http.StatusNoContent)
+	requireMiddleware(t, storePruneResponse, "stores")
+
+	settingDeleteResponse := performJSONRequest(t, app, http.MethodDelete, "/platform", nil)
+	requireStatus(t, settingDeleteResponse, http.StatusNoContent)
+	requireMiddleware(t, settingDeleteResponse, "platform")
+
+	missingSettingResponse := performJSONRequest(t, app, http.MethodGet, "/platform", nil)
+	requireStatus(t, missingSettingResponse, http.StatusNotFound)
+	requireMiddleware(t, missingSettingResponse, "platform")
+}
+
+func integrationMiddleware(name string) services.MiddlewareFunc {
+	return func(next services.HandlerFunc) services.HandlerFunc {
+		return func(context services.Context) error {
+			if native, ok := context.Native().(echov4.Context); ok {
+				native.Response().Header().Add("X-Integration-Middleware", name)
+			}
+			return next(context)
+		}
+	}
 }
 
 func containsAll(value string, fragments ...string) bool {
@@ -491,6 +672,24 @@ func requireStatus(t *testing.T, response *httptest.ResponseRecorder, status int
 
 	if response.Code != status {
 		t.Fatalf("expected status %d, got %d with body %s", status, response.Code, response.Body.String())
+	}
+}
+
+func requireMiddleware(t *testing.T, response *httptest.ResponseRecorder, names ...string) {
+	t.Helper()
+
+	values := response.Header().Values("X-Integration-Middleware")
+	for _, name := range names {
+		found := false
+		for _, value := range values {
+			if value == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected middleware %q in %v; status=%d body=%s", name, values, response.Code, response.Body.String())
+		}
 	}
 }
 
