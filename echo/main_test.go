@@ -185,6 +185,154 @@ type integrationHardItem struct {
 	Name string `json:"name"`
 }
 
+/*
+Route documentation for this platform integration.
+
+The test installs three root services:
+  - /stores: soft-deleted collection. Its live element group is /stores/:store_id.
+  - /platform: singleton.
+  - /hard-items: hard-deleted collection. Its live element group is /hard-items/:hard_item_id.
+
+Then it attaches:
+  - /stores/:store_id/catalogs: collection constrained by catalog.store_id == store.id.
+  - /stores/:store_id/catalogs/:catalog_id/products: soft-deleted collection constrained by product.catalog_id == catalog.id.
+
+Middleware names below are the service-neutral middleware functions wrapped for Echo:
+  - setup(S, V): setupMiddleware(service=S, endpointType=EndpointVerb, verb=V, name="").
+  - element(S, deleted): services.ElementMiddleware for service S, loading the current element and pushing it on the context stack.
+  - service middlewares: service.Middlewares(); this test leaves them empty for every service.
+
+Created URLs and middleware chains:
+
+  - POST /platform
+    setup(platform, ResourceCreate)
+    Accessed by this test to create the singleton.
+
+  - GET /platform
+    setup(platform, ResourceGet) -> element(platform, false)
+    Accessed by this test to read the singleton.
+
+  - PATCH /platform
+    setup(platform, ResourceUpdate) -> element(platform, false)
+
+  - DELETE /platform
+    setup(platform, ResourceDelete) -> element(platform, false)
+
+  - GET /stores
+    setup(stores, ResourceList)
+
+  - POST /stores
+    setup(stores, ResourceCreate)
+    Accessed by this test to create the parent store.
+
+  - GET /stores/:store_id
+    setup(stores, ResourceGet) -> element(stores, false)
+
+  - PATCH /stores/:store_id
+    setup(stores, ResourceUpdate) -> element(stores, false)
+
+  - DELETE /stores/:store_id
+    setup(stores, ResourceDelete) -> element(stores, false)
+
+  - GET /stores/deleted
+    setup(stores, ResourceListDeleted)
+
+  - GET /stores/deleted/:store_id
+    setup(stores, ResourceGetDeleted) -> element(stores, true)
+
+  - POST /stores/deleted/:store_id
+    setup(stores, ResourceRestore) -> element(stores, true)
+
+  - DELETE /stores/deleted/:store_id
+    setup(stores, ResourcePrune) -> element(stores, true)
+
+  - GET /stores/:store_id/catalogs
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceList)
+
+  - POST /stores/:store_id/catalogs
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceCreate)
+
+  - GET /stores/:store_id/catalogs/:catalog_id
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false)
+
+  - PATCH /stores/:store_id/catalogs/:catalog_id
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceUpdate) -> element(catalogs, false)
+
+  - DELETE /stores/:store_id/catalogs/:catalog_id
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceDelete) -> element(catalogs, false)
+
+  - GET /stores/:store_id/catalogs/:catalog_id/products
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false) ->
+    setup(products, ResourceList)
+    Accessed by this test with ?sort=rank to list live products.
+
+  - POST /stores/:store_id/catalogs/:catalog_id/products
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false) ->
+    setup(products, ResourceCreate)
+
+  - GET /stores/:store_id/catalogs/:catalog_id/products/:product_id
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false) ->
+    setup(products, ResourceGet) -> element(products, false)
+
+  - PATCH /stores/:store_id/catalogs/:catalog_id/products/:product_id
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false) ->
+    setup(products, ResourceUpdate) -> element(products, false)
+
+  - DELETE /stores/:store_id/catalogs/:catalog_id/products/:product_id
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false) ->
+    setup(products, ResourceDelete) -> element(products, false)
+    Accessed by this test to soft-delete a product.
+
+  - GET /stores/:store_id/catalogs/:catalog_id/products/deleted
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false) ->
+    setup(products, ResourceListDeleted)
+    Accessed by this test to list deleted products.
+
+  - GET /stores/:store_id/catalogs/:catalog_id/products/deleted/:product_id
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false) ->
+    setup(products, ResourceGetDeleted) -> element(products, true)
+
+  - POST /stores/:store_id/catalogs/:catalog_id/products/deleted/:product_id
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false) ->
+    setup(products, ResourceRestore) -> element(products, true)
+    Accessed by this test to restore a deleted product.
+
+  - DELETE /stores/:store_id/catalogs/:catalog_id/products/deleted/:product_id
+    setup(stores, ResourceGet) -> element(stores, false) ->
+    setup(catalogs, ResourceGet) -> element(catalogs, false) ->
+    setup(products, ResourcePrune) -> element(products, true)
+    Accessed by this test first to prove restored products are no longer in the
+    deleted route, then again to prune a deleted product.
+
+  - POST /hard-items
+    setup(hard-items, ResourceCreate)
+    Accessed by this test to create a hard-deleted resource.
+
+  - GET /hard-items/:hard_item_id
+    setup(hard-items, ResourceGet) -> element(hard-items, false)
+    Accessed by this test after hard deletion to assert 404.
+
+  - DELETE /hard-items/:hard_item_id
+    setup(hard-items, ResourceDelete) -> element(hard-items, false)
+    Accessed by this test to permanently delete the hard-deleted resource.
+
+The hard-items collection also creates GET /hard-items, PATCH /hard-items/:hard_item_id,
+and no /deleted routes because integrationHardItem does not implement SoftDeletedResource.
+Catalogs also create no /deleted routes because integrationCatalog is not soft-deleted.
+*/
 func TestEchoPlatformWithMemoryStorageNestedSingletonsCollectionsAndDeletes(t *testing.T) {
 	t.Parallel()
 
