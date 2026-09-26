@@ -15,6 +15,21 @@ import (
 	"github.com/universe-10th/echo-resources/utils"
 )
 
+// ResourceVerb tells the verbs supported by the resource.
+type ResourceVerb uint16
+
+const (
+	ResourceGet ResourceVerb = iota
+	ResourceList
+	ResourceCreate
+	ResourceUpdate
+	ResourceDelete
+	ResourceGetDeleted
+	ResourceListDeleted
+	ResourceRestore
+	ResourcePrune
+)
+
 var (
 	ErrInvalidStorage              = errors.New("invalid storage")
 	ErrInvalidParentService        = errors.New("invalid parent service")
@@ -23,19 +38,19 @@ var (
 	ErrConflictingServiceURLArg    = errors.New("conflicting service URL arg")
 	ErrInvalidConstraintJSONField  = errors.New("invalid constraint JSON field")
 	logger                         = slog.Default()
-	defaultCollectionResourceVerbs = NewResourceVerbs(
+	defaultCollectionResourceVerbs = utils.NewFlags[ResourceVerb](
 		ResourceGet, ResourceList,
 		ResourceCreate, ResourceUpdate, ResourceDelete,
 	)
-	defaultSingletonResourceVerbs = NewResourceVerbs(
+	defaultSingletonResourceVerbs = utils.NewFlags[ResourceVerb](
 		ResourceGet,
 		ResourceCreate, ResourceUpdate, ResourceDelete,
 	)
-	defaultSoftDeletedCollectionResourceVerbs = NewResourceVerbs(
+	defaultSoftDeletedCollectionResourceVerbs = utils.NewFlags[ResourceVerb](
 		ResourceGet, ResourceList, ResourceGetDeleted, ResourceListDeleted,
 		ResourceCreate, ResourceUpdate, ResourceDelete, ResourceRestore, ResourcePrune,
 	)
-	defaultSoftDeletedSingletonResourceVerbs = NewResourceVerbs(
+	defaultSoftDeletedSingletonResourceVerbs = utils.NewFlags[ResourceVerb](
 		ResourceGet, ResourceGetDeleted,
 		ResourceCreate, ResourceUpdate, ResourceDelete, ResourceRestore, ResourcePrune,
 	)
@@ -50,6 +65,74 @@ const (
 	pageQueryArg   = "page"
 )
 
+/**
+  The goal of services is that they must be easy to compose and to install
+  in any supported web framework. As of today, Echo is the one we will support
+  but some day we might add more frameworks.
+
+  The idea is that services (in particular: ResourceService[IDT, RT]) are
+  abstractions and shortcuts to create quick CRUD applications which MAY
+  have varying degrees of permissions and configuration.
+
+  For example, one may define the following resources:
+
+  - Store
+  - Catalog
+  - Product
+
+  In a way that all of them are available, serving available stores, per-store
+  catalogs, and per-catalog products.
+
+  Then, a design on the services:
+
+  - StoreService (prefix: "stores", storage: StoresStorage, url arg: "s_id")
+  - CatalogService (prefix: "catalogs", storage: CatalogsStorage, url arg: "c_id")
+  - ProductService (prefix: "products", storage: ProductsStorage, url arg: "p_id")
+
+  Then, the CatalogService depends on the StoreService like this:
+
+      catalogService.AttachTo(storeService, "store_id")
+
+  considering the Catalog resource has a field that, in JSON naming, is named "store_id":
+
+      type Catalog struct {
+          ...
+          StoreId uint `json:"store_id" gorm:"..."`
+          ...
+      }
+
+  The relationship to the products is similar:
+
+      productService.AttachTo(catalogService, "catalog_id")
+
+  Each one will have its own configuration, and its middlewares:
+
+  - SetupMiddleware: mandatory.
+  - More middlewares: optional.
+  - ElementMiddleware (non-deleted elements): mandatory.
+
+  Then, when they're installed in a framework, their paths are:
+
+  Group /stores
+      GET            >> List stores
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceList, "") + others
+      POST           >> Create a store
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceCreate, "") + others
+      GET /deleted   >> List deleted stores
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceListDeleted, "") + others
+      GET /{s_id}    >> Get an element (notice how "deleted" may take precedence, which
+                        makes one consider that using arbitrary strings as keys might not
+                        be a very good idea).
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceGet, "") +
+                    ElementMiddleware[IDT, RT] +
+                    others
+      PATCH  /{s_id} >> Patch an element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceUpdate, "") + others
+      DELETE /{s_id} >> Delete an element.
+      - Middleware: SetupMiddleware(storeService, EndpointVerb, ResourceDelete, "") + others
+      GET /deleted/{s_id}
+*/
+
 // A Service is an instance that can be registered in a web application.
 type Service interface {
 	// Prefix stands for the prefix to use.
@@ -63,7 +146,7 @@ type Service interface {
 	IsSingleton() bool
 
 	// Verbs tells the list of supported verbs.
-	Verbs() ResourceVerbs
+	Verbs() utils.Flags[ResourceVerb]
 
 	// Children tells the services that are children of this service.
 	Children() []Service
@@ -169,7 +252,7 @@ type ResourceService[IDT comparable, RT types.Resource[IDT]] struct {
 
 	// The verbs field tells which verbs will be considered for
 	// the resource.
-	verbs ResourceVerbs
+	verbs utils.Flags[ResourceVerb]
 
 	// The filter field keeps a custom filter applier. By default,
 	// no extra filter is applied.
@@ -236,15 +319,15 @@ func (service ResourceService[IDT, RT]) URLArg() string {
 
 // UsingVerbs sets the verbs to enable for this resource.
 func (service *ResourceService[IDT, RT]) UsingVerbs(verbs ...ResourceVerb) *ResourceService[IDT, RT] {
-	service.verbs = ResourceVerbs(utils.NewFlags[ResourceVerb](verbs...))
+	service.verbs = utils.NewFlags[ResourceVerb](verbs...)
 	return service
 }
 
 // Verbs returns the flag of verbs to use. Children classes
 // MUST override this behavior if the verbs set here are none,
 // so they use the default (full) set for the resource.
-func (service ResourceService[IDT, RT]) Verbs() ResourceVerbs {
-	if service.verbs == ResourceVerbs(0) {
+func (service ResourceService[IDT, RT]) Verbs() utils.Flags[ResourceVerb] {
+	if service.verbs == utils.Flags[ResourceVerb](0) {
 		var r RT
 		if _, ok := any(r).(types.SoftDeletedResource[IDT]); ok {
 			if service.singleton {
@@ -431,6 +514,12 @@ func (service ResourceService[IDT, RT]) PageSize() int64 {
 		return defaultPageSize
 	}
 	return service.pageSize
+}
+
+// CanHaveChildren tells whether a service can register children
+// (by other services registering as children of it).
+func (service ResourceService[IDT, RT]) CanHaveChildren() bool {
+	return service.verbs.Has(ResourceGet)
 }
 
 type childAppender interface {
