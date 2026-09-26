@@ -37,6 +37,7 @@ var (
 	ErrCyclicServiceAttachment     = errors.New("cyclic service attachment")
 	ErrConflictingServiceURLArg    = errors.New("conflicting service URL arg")
 	ErrInvalidConstraintJSONField  = errors.New("invalid constraint JSON field")
+	ErrInvalidConstraintIDType     = errors.New("invalid constraint id type")
 	logger                         = slog.Default()
 	defaultCollectionResourceVerbs = utils.NewFlags[ResourceVerb](
 		ResourceGet, ResourceList,
@@ -644,6 +645,10 @@ type childAppender interface {
 	addChild(Service)
 }
 
+type mappingProvider interface {
+	resourceMapping() *types.FieldsMapping
+}
+
 func sameService(left Service, right Service) bool {
 	if left == nil || right == nil {
 		return false
@@ -670,6 +675,13 @@ func (service *ResourceService[IDT, RT]) addChild(child Service) {
 	}
 
 	service.childrenServices = append(service.childrenServices, child)
+}
+
+func (service *ResourceService[IDT, RT]) resourceMapping() *types.FieldsMapping {
+	if service.storage == nil {
+		return nil
+	}
+	return service.storage.Mapping()
 }
 
 // MustAttachTo attaches the current service to another service.
@@ -700,9 +712,25 @@ func (service *ResourceService[IDT, RT]) MustAttachTo(s Service, constraintJSONF
 	}
 
 	if !s.IsSingleton() {
-		if service.storage == nil || types.FieldForJSON(service.storage.Mapping(), constraintJSONField) == "" {
+		if service.storage == nil {
 			panic(ErrInvalidConstraintJSONField)
-		} //
+		}
+
+		childMapping := service.storage.Mapping()
+		childField, ok := types.StructFieldForJSON(childMapping, constraintJSONField)
+		if !ok {
+			panic(ErrInvalidConstraintJSONField)
+		}
+
+		provider, ok := s.(mappingProvider)
+		if !ok || provider.resourceMapping() == nil {
+			panic(ErrInvalidParentService)
+		}
+		parentIDType := provider.resourceMapping().IDType()
+		if !isAssignableOrConvertible(parentIDType, childField.Type) {
+			panic(ErrInvalidConstraintIDType)
+		}
+
 		// This endpoint is not created if RT is not SoftDeletedResource.
 
 		service.constraintJSONField = constraintJSONField
@@ -766,6 +794,23 @@ func (service ResourceService[IDT, RT]) getStackedElement(context Context, index
 	return last, nil
 }
 
+func getStackedElementID(context Context, index int) (any, error) {
+	lastRaw, exists := context.PeekElement(index)
+	if !exists {
+		logger.Error("no element in context stack - provably called outside element middleware")
+		return nil, types.InternalError{}
+	}
+
+	value := reflect.ValueOf(lastRaw)
+	method := value.MethodByName("GetID")
+	if !method.IsValid() || method.Type().NumIn() != 0 || method.Type().NumOut() != 1 {
+		logger.Error("invalid element in context stack - element does not expose GetID")
+		return nil, types.InternalError{}
+	}
+
+	return method.Call(nil)[0].Interface(), nil
+}
+
 // makeElementFilter assembles a filter from the current request.
 func (service ResourceService[IDT, RT]) makeElementFilter(context Context, deleted bool) (
 	*types.FilterExpression, IDT, error,
@@ -804,7 +849,7 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 	if service.constraintJSONField != "" {
 		// We use index 0 since the idea is to get the constraint
 		// based on the current (last) element.
-		last, err := service.getStackedElement(context, 0)
+		parentID, err := getStackedElementID(context, 0)
 		if err != nil {
 			return nil, id, err
 		}
@@ -812,7 +857,7 @@ func (service ResourceService[IDT, RT]) makeElementFilter(context Context, delet
 		filter.Restrict(&types.FilterExpression{
 			Operator:    types.FilterEQ,
 			Field:       service.constraintJSONField,
-			Value:       last.GetID(),
+			Value:       parentID,
 			Expressions: nil,
 		})
 	}
@@ -837,7 +882,7 @@ func (service ResourceService[IDT, RT]) applyPreviousConstraint(context Context,
 		// We use index 1 since we want to get not the current
 		// element but the PREVIOUS one instead.
 
-		last, err := service.getStackedElement(context, 1)
+		parentID, err := getStackedElementID(context, 1)
 		if err != nil {
 			return err
 		}
@@ -852,7 +897,7 @@ func (service ResourceService[IDT, RT]) applyPreviousConstraint(context Context,
 			return types.InternalError{}
 		}
 
-		if err := setElementField(element, fieldName, last.GetID()); err != nil {
+		if err := setElementField(element, fieldName, parentID); err != nil {
 			logger.Error(
 				"could not apply constraint to resource element",
 				"prefix", service.prefix,
@@ -865,6 +910,19 @@ func (service ResourceService[IDT, RT]) applyPreviousConstraint(context Context,
 	}
 
 	return nil
+}
+
+func isAssignableOrConvertible(source reflect.Type, target reflect.Type) bool {
+	if source == nil || target == nil {
+		return false
+	}
+	if source.AssignableTo(target) {
+		return true
+	}
+	if source.Kind() == target.Kind() && source.ConvertibleTo(target) {
+		return true
+	}
+	return false
 }
 
 func setElementField(element any, fieldName string, value any) error {
@@ -1056,7 +1114,7 @@ func (service ResourceService[IDT, RT]) applyListRestrictions(context Context, f
 	}
 
 	if service.constraintJSONField != "" {
-		last, err := service.getStackedElement(context, 0)
+		parentID, err := getStackedElementID(context, 0)
 		if err != nil {
 			return err
 		}
@@ -1064,7 +1122,7 @@ func (service ResourceService[IDT, RT]) applyListRestrictions(context Context, f
 		filter.Restrict(&types.FilterExpression{
 			Operator:    types.FilterEQ,
 			Field:       service.constraintJSONField,
-			Value:       last.GetID(),
+			Value:       parentID,
 			Expressions: nil,
 		})
 	}

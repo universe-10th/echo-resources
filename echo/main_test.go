@@ -1,12 +1,15 @@
 package echo
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	echov4 "github.com/labstack/echo/v4"
+	"github.com/universe-10th/echo-resources/memory"
 	"github.com/universe-10th/echo-resources/types/services"
 	"github.com/universe-10th/echo-resources/utils"
 )
@@ -154,6 +157,146 @@ func TestInstallWrapsElementMiddleware(t *testing.T) {
 	}
 }
 
+type integrationStore struct {
+	memory.SoftDeletedResource[int]
+	Name string `json:"name"`
+}
+
+type integrationCatalog struct {
+	memory.Resource[int]
+	StoreID int    `json:"store_id"`
+	Name    string `json:"name"`
+}
+
+type integrationProduct struct {
+	memory.SoftDeletedResource[int]
+	CatalogID int    `json:"catalog_id"`
+	Name      string `json:"name"`
+	Rank      int    `json:"rank"`
+}
+
+type integrationSetting struct {
+	memory.Resource[int]
+	Version string `json:"version"`
+}
+
+type integrationHardItem struct {
+	memory.Resource[int]
+	Name string `json:"name"`
+}
+
+func TestEchoPlatformWithMemoryStorageNestedSingletonsCollectionsAndDeletes(t *testing.T) {
+	t.Parallel()
+
+	app := echov4.New()
+
+	storeStorage := memory.NewStorage[int, *integrationStore]()
+	catalogStorage := memory.NewStorage[int, *integrationCatalog]()
+	productStorage := memory.NewStorage[int, *integrationProduct]()
+	settingStorage := memory.NewStorage[int, *integrationSetting]()
+	hardItemStorage := memory.NewStorage[int, *integrationHardItem]()
+
+	storeService := services.MustCreateCollectionService[int, *integrationStore]("stores", "store_id", storeStorage)
+	storeService.UsingPageSize(5)
+	catalogService := services.MustCreateCollectionService[int, *integrationCatalog]("catalogs", "catalog_id", catalogStorage)
+	catalogService.UsingPageSize(5)
+	catalogService.MustAttachTo(storeService, "store_id")
+	productService := services.MustCreateCollectionService[int, *integrationProduct]("products", "product_id", productStorage)
+	productService.UsingPageSize(5)
+	productService.MustAttachTo(catalogService, "catalog_id")
+	settingService := services.MustCreateSingletonService[int, *integrationSetting]("platform", settingStorage)
+	hardItemService := services.MustCreateCollectionService[int, *integrationHardItem]("hard-items", "hard_item_id", hardItemStorage)
+
+	if err := Install(app, storeService); err != nil {
+		t.Fatalf("Install returned error: %v", err)
+	}
+	if err := Install(app, settingService); err != nil {
+		t.Fatalf("Install singleton returned error: %v", err)
+	}
+	if err := Install(app, hardItemService); err != nil {
+		t.Fatalf("Install hard item service returned error: %v", err)
+	}
+
+	settingResponse := performJSONRequest(t, app, http.MethodPost, "/platform", map[string]any{"version": "2026.9"})
+	requireStatus(t, settingResponse, http.StatusCreated)
+	var createdSetting integrationSetting
+	decodeJSON(t, settingResponse, &createdSetting)
+	if createdSetting.Version != "2026.9" || createdSetting.ID == 0 {
+		t.Fatalf("unexpected singleton create response: %#v", createdSetting)
+	}
+
+	storeResponse := performJSONRequest(t, app, http.MethodPost, "/stores", map[string]any{"name": "Main"})
+	requireStatus(t, storeResponse, http.StatusCreated)
+	var createdStore integrationStore
+	decodeJSON(t, storeResponse, &createdStore)
+	if createdStore.ID == 0 {
+		t.Fatal("expected store to receive a generated ID")
+	}
+
+	hardItemResponse := performJSONRequest(t, app, http.MethodPost, "/hard-items", map[string]any{"name": "Temporary"})
+	requireStatus(t, hardItemResponse, http.StatusCreated)
+
+	catalog := &integrationCatalog{StoreID: createdStore.ID, Name: "Fall"}
+	if notFound, err := catalogStorage.Save(&catalog); err != nil || notFound {
+		t.Fatalf("catalog Save returned notFound=%v err=%v", notFound, err)
+	}
+	firstProduct := &integrationProduct{CatalogID: catalog.ID, Name: "Hat", Rank: 2}
+	secondProduct := &integrationProduct{CatalogID: catalog.ID, Name: "Scarf", Rank: 1}
+	for _, product := range []*integrationProduct{firstProduct, secondProduct} {
+		if notFound, err := productStorage.Save(&product); err != nil || notFound {
+			t.Fatalf("product Save returned notFound=%v err=%v", notFound, err)
+		}
+	}
+
+	settingResponse = performJSONRequest(t, app, http.MethodGet, "/platform", nil)
+	requireStatus(t, settingResponse, http.StatusOK)
+	var loadedSetting integrationSetting
+	decodeJSON(t, settingResponse, &loadedSetting)
+	if loadedSetting.Version != "2026.9" {
+		t.Fatalf("unexpected singleton setting response: %#v", loadedSetting)
+	}
+
+	productsResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs/1/products?sort=rank", nil)
+	requireStatus(t, productsResponse, http.StatusOK)
+	var productsPage struct {
+		Elements   []integrationProduct `json:"elements"`
+		Page       int                  `json:"page"`
+		TotalPages int                  `json:"totalPages"`
+	}
+	decodeJSON(t, productsResponse, &productsPage)
+	if productsPage.TotalPages != 1 || len(productsPage.Elements) != 2 || productsPage.Elements[0].Name != "Scarf" {
+		t.Fatalf("unexpected products page: %#v", productsPage)
+	}
+
+	deleteProductResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1/catalogs/1/products/1", nil)
+	requireStatus(t, deleteProductResponse, http.StatusNoContent)
+
+	deletedProductsResponse := performJSONRequest(t, app, http.MethodGet, "/stores/1/catalogs/1/products/deleted", nil)
+	requireStatus(t, deletedProductsResponse, http.StatusOK)
+	var deletedProductsPage struct {
+		Elements []integrationProduct `json:"elements"`
+	}
+	decodeJSON(t, deletedProductsResponse, &deletedProductsPage)
+	if len(deletedProductsPage.Elements) != 1 || deletedProductsPage.Elements[0].Name != "Hat" {
+		t.Fatalf("unexpected deleted products page: %#v", deletedProductsPage)
+	}
+
+	restoreProductResponse := performJSONRequest(t, app, http.MethodPost, "/stores/1/catalogs/1/products/deleted/1", nil)
+	requireStatus(t, restoreProductResponse, http.StatusOK)
+	pruneAfterRestoreResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1/catalogs/1/products/deleted/1", nil)
+	requireStatus(t, pruneAfterRestoreResponse, http.StatusNotFound)
+
+	deleteProductAgainResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1/catalogs/1/products/1", nil)
+	requireStatus(t, deleteProductAgainResponse, http.StatusNoContent)
+	pruneProductResponse := performJSONRequest(t, app, http.MethodDelete, "/stores/1/catalogs/1/products/deleted/1", nil)
+	requireStatus(t, pruneProductResponse, http.StatusNoContent)
+
+	deleteHardItemResponse := performJSONRequest(t, app, http.MethodDelete, "/hard-items/1", nil)
+	requireStatus(t, deleteHardItemResponse, http.StatusNoContent)
+	missingHardItemResponse := performJSONRequest(t, app, http.MethodGet, "/hard-items/1", nil)
+	requireStatus(t, missingHardItemResponse, http.StatusNotFound)
+}
+
 func containsAll(value string, fragments ...string) bool {
 	for _, fragment := range fragments {
 		if !contains(value, fragment) {
@@ -170,4 +313,43 @@ func contains(value string, fragment string) bool {
 		}
 	}
 	return false
+}
+
+func performJSONRequest(t *testing.T, app *echov4.Echo, method string, target string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var requestBody *bytes.Reader
+	if body == nil {
+		requestBody = bytes.NewReader(nil)
+	} else {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("json.Marshal returned error: %v", err)
+		}
+		requestBody = bytes.NewReader(encoded)
+	}
+
+	request := httptest.NewRequest(method, target, requestBody)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response := httptest.NewRecorder()
+	app.ServeHTTP(response, request)
+	return response
+}
+
+func requireStatus(t *testing.T, response *httptest.ResponseRecorder, status int) {
+	t.Helper()
+
+	if response.Code != status {
+		t.Fatalf("expected status %d, got %d with body %s", status, response.Code, response.Body.String())
+	}
+}
+
+func decodeJSON(t *testing.T, response *httptest.ResponseRecorder, target any) {
+	t.Helper()
+
+	if err := json.Unmarshal(response.Body.Bytes(), target); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v; response status=%d body=%s", err, response.Code, response.Body.String())
+	}
 }

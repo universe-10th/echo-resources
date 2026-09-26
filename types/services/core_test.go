@@ -26,6 +26,23 @@ func (r coreConstraintResource) SetLastUpdateTimeIn(*time.Location) {}
 func (r coreConstraintResource) GetCreationTimeField() string       { return "created_at" }
 func (r coreConstraintResource) GetLastUpdateTimeField() string     { return "updated_at" }
 
+type coreConstraintParentResource struct {
+	ID int `json:"id"`
+}
+
+func (r coreConstraintParentResource) GetID() int                         { return r.ID }
+func (r coreConstraintParentResource) SetID(int)                          {}
+func (r coreConstraintParentResource) GetIDField() string                 { return "id" }
+func (r coreConstraintParentResource) GetCreationTime() time.Time         { return time.Time{} }
+func (r coreConstraintParentResource) GetLastUpdateTime() time.Time       { return time.Time{} }
+func (r coreConstraintParentResource) SetCreationTime()                   {}
+func (r coreConstraintParentResource) SetCreationTimeIn(*time.Location)   {}
+func (r coreConstraintParentResource) RestoreCreationTime(time.Time)      {}
+func (r coreConstraintParentResource) SetLastUpdateTime()                 {}
+func (r coreConstraintParentResource) SetLastUpdateTimeIn(*time.Location) {}
+func (r coreConstraintParentResource) GetCreationTimeField() string       { return "created_at" }
+func (r coreConstraintParentResource) GetLastUpdateTimeField() string     { return "updated_at" }
+
 type coreConstraintBadResource struct {
 	ID       int    `json:"id"`
 	ParentID string `json:"parent_id"`
@@ -104,9 +121,10 @@ func TestReadRejectsNonJSONContent(t *testing.T) {
 func TestMustAttachToLinksParentAndChild(t *testing.T) {
 	t.Parallel()
 
-	parent := ResourceService[int, coreConstraintResource]{
-		prefix: "parents",
-		urlArg: "parent_id",
+	parent := ResourceService[int, coreConstraintParentResource]{
+		prefix:  "parents",
+		urlArg:  "parent_id",
+		storage: newCoreConstraintStorage[int, coreConstraintParentResource](),
 	}
 	child := ResourceService[int, coreConstraintResource]{
 		prefix:  "children",
@@ -132,9 +150,10 @@ func TestMustAttachToLinksParentAndChild(t *testing.T) {
 func TestAttachToReturnsErrorForCycle(t *testing.T) {
 	t.Parallel()
 
-	parent := ResourceService[int, coreConstraintResource]{
-		prefix: "parents",
-		urlArg: "parent_id",
+	parent := ResourceService[int, coreConstraintParentResource]{
+		prefix:  "parents",
+		urlArg:  "parent_id",
+		storage: newCoreConstraintStorage[int, coreConstraintParentResource](),
 	}
 	child := ResourceService[int, coreConstraintResource]{
 		prefix:  "children",
@@ -153,9 +172,10 @@ func TestAttachToReturnsErrorForCycle(t *testing.T) {
 func TestAttachToReturnsErrorForDuplicateURLArgInParentPath(t *testing.T) {
 	t.Parallel()
 
-	parent := ResourceService[int, coreConstraintResource]{
-		prefix: "parents",
-		urlArg: "id",
+	parent := ResourceService[int, coreConstraintParentResource]{
+		prefix:  "parents",
+		urlArg:  "id",
+		storage: newCoreConstraintStorage[int, coreConstraintParentResource](),
 	}
 	child := ResourceService[int, coreConstraintResource]{
 		prefix: "children",
@@ -171,9 +191,10 @@ func TestAttachToReturnsErrorForDuplicateURLArgInParentPath(t *testing.T) {
 func TestAttachToReturnsErrorForInvalidConstraintJSONField(t *testing.T) {
 	t.Parallel()
 
-	parent := ResourceService[int, coreConstraintResource]{
-		prefix: "parents",
-		urlArg: "parent_id",
+	parent := ResourceService[int, coreConstraintParentResource]{
+		prefix:  "parents",
+		urlArg:  "parent_id",
+		storage: newCoreConstraintStorage[int, coreConstraintParentResource](),
 	}
 	child := ResourceService[int, coreConstraintResource]{
 		prefix:  "children",
@@ -187,10 +208,30 @@ func TestAttachToReturnsErrorForInvalidConstraintJSONField(t *testing.T) {
 	}
 }
 
+func TestAttachToReturnsErrorForConstraintIDTypeMismatch(t *testing.T) {
+	t.Parallel()
+
+	parent := ResourceService[int, coreConstraintParentResource]{
+		prefix:  "parents",
+		urlArg:  "parent_id",
+		storage: newCoreConstraintStorage[int, coreConstraintParentResource](),
+	}
+	child := ResourceService[int, coreConstraintBadResource]{
+		prefix:  "children",
+		urlArg:  "child_id",
+		storage: newCoreConstraintStorage[int, coreConstraintBadResource](),
+	}
+
+	err := child.AttachTo(&parent, "parent_id")
+	if !errors.Is(err, ErrInvalidConstraintIDType) {
+		t.Fatalf("expected ErrInvalidConstraintIDType, got %v", err)
+	}
+}
+
 func TestApplyPreviousConstraintSetsMappedField(t *testing.T) {
 	t.Parallel()
 
-	parent := coreConstraintResource{ID: 42}
+	parent := coreConstraintParentResource{ID: 42}
 	element := coreConstraintResource{ID: 100}
 	service := ResourceService[int, coreConstraintResource]{
 		prefix:              "children",
@@ -210,7 +251,7 @@ func TestApplyPreviousConstraintSetsMappedField(t *testing.T) {
 func TestApplyConstraintReturnsInternalErrorForUnmappedField(t *testing.T) {
 	t.Parallel()
 
-	parent := coreConstraintResource{ID: 42}
+	parent := coreConstraintParentResource{ID: 42}
 	element := coreConstraintResource{ID: 100}
 	service := ResourceService[int, coreConstraintResource]{
 		prefix:              "children",
@@ -228,7 +269,7 @@ func TestApplyConstraintReturnsInternalErrorForUnmappedField(t *testing.T) {
 func TestApplyConstraintReturnsInternalErrorForIncompatibleField(t *testing.T) {
 	t.Parallel()
 
-	parent := coreConstraintBadResource{ID: 42}
+	parent := coreConstraintParentResource{ID: 42}
 	element := coreConstraintBadResource{ID: 100}
 	service := ResourceService[int, coreConstraintBadResource]{
 		prefix:              "children",
