@@ -6,11 +6,11 @@ import (
 	"github.com/universe-10th/echo-resources/types"
 )
 
-// StupMiddleware is used for ALL the endpoints registered in
+// SetupMiddleware is used for ALL the endpoints registered in
 // a resource. Useful for particular middleware functions that
 // need to detect the current endpoint, and registered prior
 // to any other middleware functions given to the resource.
-func StupMiddleware[IDT comparable, RT types.Resource[IDT]](
+func SetupMiddleware[IDT comparable, RT types.Resource[IDT]](
 	service *ResourceService[IDT, RT],
 	endpointType EndpointType,
 	verb ResourceVerb,
